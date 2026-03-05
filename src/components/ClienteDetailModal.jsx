@@ -48,7 +48,7 @@ function ClienteDetailModal({ open, onOpenChange, cliente, initialTab = "general
     return (
 
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl">
+            <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
 
                 <DialogHeader className="bg-gradient-to-r from-indigo-50 to-white border-b p-6 rounded-t-xl">
 
