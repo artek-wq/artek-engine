@@ -4,6 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/customSupabaseClient";
 import ClienteFilesDialog from "@/components/ClienteFilesDialog";
+import { Trash2 } from "lucide-react";
 
 function ClienteDetailModal({ open, onOpenChange, cliente, initialTab = "general" }) {
 
@@ -24,6 +25,34 @@ function ClienteDetailModal({ open, onOpenChange, cliente, initialTab = "general
         setActiveTab(initialTab)
 
     }, [initialTab, open])
+
+    const handleDeleteCliente = async () => {
+
+        const confirmDelete = confirm(
+            "¿Seguro que deseas eliminar este cliente? Esta acción no se puede deshacer."
+        );
+
+        if (!confirmDelete) return;
+
+        const { error } = await supabase
+            .from("clientes")
+            .delete()
+            .eq("id", cliente.id);
+
+        if (error) {
+
+            alert("No se pudo eliminar el cliente");
+
+            return;
+        }
+
+        alert("Cliente eliminado");
+
+        onOpenChange(false);
+
+        window.location.reload();
+
+    };
 
     const loadData = async () => {
 
@@ -228,6 +257,14 @@ function ClienteDetailModal({ open, onOpenChange, cliente, initialTab = "general
                             }}
                         >
                             Editar
+                        </Button>
+
+                        <Button
+                            variant="destructive"
+                            onClick={handleDeleteCliente}
+                        >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Eliminar
                         </Button>
 
                     </div>
