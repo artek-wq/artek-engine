@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Users, FileText, DollarSign, Receipt, Bell, Settings, Menu, ChevronRight, Briefcase, PieChart, Truck, FolderOpen, FileCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import ClientesSection from '@/components/ClientesSection';
 import OperacionesSection from '@/components/OperacionesSection';
 import PagosSection from '@/components/PagosSection';
@@ -48,6 +49,7 @@ function Dashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   const menuItems = [
     {
@@ -167,14 +169,25 @@ function Dashboard() {
           {/* User Profile Summary */}
           <div className="p-4 border-t border-slate-800/50">
             <div className="flex flex-col gap-2">
-              <button className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-slate-800 transition-colors">
+              <button
+                onClick={async () => {
+                  await signOut();
+                  navigate('/');
+                }}
+                className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-slate-800 transition-colors"
+              >
                 <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold border border-slate-600 uppercase">
-                  AD
+                  {user?.email?.charAt(0).toUpperCase()}
                 </div>
+
                 {isSidebarOpen && (
                   <div className="text-left overflow-hidden">
-                    <p className="text-sm font-medium text-white truncate">Administrador</p>
-                    <p className="text-xs text-slate-400 truncate">admin@artek.com</p>
+                    <p className="text-sm font-medium text-white truncate">
+                      {user?.email?.split('@')[0]}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {user?.email}
+                    </p>
                   </div>
                 )}
               </button>
