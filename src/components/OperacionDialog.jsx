@@ -62,6 +62,26 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
     }
   }, [open]);
 
+  const loadDocumentos = async (operacionId) => {
+
+    const { data, error } = await supabase
+      .from('documentos')
+      .select('*')
+      .eq('operacion_id', operacionId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      toast({
+        title: "Error cargando documentos",
+        description: error.message,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setDocumentos(data || []);
+  };
+
   useEffect(() => {
 
     if (isEditMode && open) {
@@ -121,25 +141,6 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
       notas: operacion.notas || ''
     });
 
-    const loadDocumentos = async (operacionId) => {
-
-      const { data, error } = await supabase
-        .from('documentos')
-        .select('*')
-        .eq('operacion_id', operacionId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        toast({
-          title: "Error cargando documentos",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setDocumentos(data || []);
-    };
 
     // 🔥 Cargar proveedores vinculados
     const { data: relaciones } = await supabase
