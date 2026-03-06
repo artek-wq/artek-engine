@@ -15,6 +15,7 @@ import ClienteFilesDialog from '@/components/ClienteFilesDialog';
 import ClienteDetailModal from '@/components/ClienteDetailModal';
 import { useToast } from '@/components/ui/use-toast';
 import { uploadFile, BUCKET_NAME } from '@/lib/fileUtils';
+import { usePermissions } from "@/hooks/usePermissions";
 
 function ClientesSection() {
 
@@ -35,6 +36,7 @@ function ClientesSection() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState(null);
   const [initialTab, setInitialTab] = useState("general")
+  const { can } = usePermissions();
 
   // 🔹 Cargar clientes desde Supabase
   const fetchClientes = async () => {
@@ -57,7 +59,7 @@ function ClientesSection() {
       return;
     }
 
-    const formatted = data.map(cliente => ({
+    const formatted = (data || []).map(cliente => ({
       ...cliente,
       operaciones_count: cliente.operaciones?.length || 0,
       documentos_count: cliente.documentos?.length || 0
@@ -71,10 +73,12 @@ function ClientesSection() {
   };
 
   useEffect(() => {
-    if (user) {
-      fetchClientes();
-    }
-  }, [user]);
+
+    if (!user) return;
+
+    fetchClientes();
+
+  }, [user?.id]);
 
   useEffect(() => {
 
@@ -112,6 +116,21 @@ function ClientesSection() {
         description: "Debes iniciar sesión nuevamente.",
         variant: "destructive"
       });
+      {
+        can("clientes.create") && (
+          <Button
+            onClick={() => {
+              setEditingCliente(null);
+              setDialogOpen(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Cliente
+          </Button>
+        )
+      }
+
       return;
     }
 
@@ -142,7 +161,19 @@ function ClientesSection() {
 
     // 🔹 Crear carpeta automática basada en ID
     const placeholderFile = new File([""], ".keep", { type: "text/plain" });
-    await uploadFile(BUCKET_NAME, `clientes/${data.id}`, placeholderFile);
+    try {
+
+      await uploadFile(
+        BUCKET_NAME,
+        `clientes/${data.id}`,
+        placeholderFile
+      );
+
+    } catch (err) {
+
+      console.error("Error creando carpeta cliente", err);
+
+    }
 
     toast({
       title: "Cliente creado",
@@ -198,6 +229,18 @@ function ClientesSection() {
         description: error.message || "No se pudo eliminar el cliente.",
         variant: "destructive"
       });
+
+      {
+        can("clientes.delete") && (
+          <Button
+            variant="destructive"
+            onClick={() => handleDeleteCliente(cliente.id)}
+          >
+            Eliminar
+          </Button>
+        )
+      }
+
       return;
     }
 
@@ -247,16 +290,18 @@ function ClientesSection() {
           />
         </div>
 
-        <Button
-          onClick={() => {
-            setEditingCliente(null);
-            setDialogOpen(true);
-          }}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nuevo Cliente
-        </Button>
+        {can("clientes.create") && (
+          <Button
+            onClick={() => {
+              setEditingCliente(null);
+              setDialogOpen(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Cliente
+          </Button>
+        )}
       </div>
 
       {/* Cards */}

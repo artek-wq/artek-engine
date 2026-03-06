@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/toaster';
@@ -16,6 +15,8 @@ import ProveedoresSection from '@/components/ProveedoresSection';
 import FileManager from '@/components/FileManager';
 import ChecklistSupabaseArchivos from '@/components/ChecklistSupabaseArchivos';
 import AdminModal from '@/components/AdminModal';
+import { usePermissions } from "@/hooks/usePermissions";
+import AdminRolesPanel from "@/components/AdminRolesPanel";
 
 function Dashboard() {
   useEffect(() => {
@@ -50,63 +51,50 @@ function Dashboard() {
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { can, loading } = usePermissions();
+
+  if (loading) return null;
 
   const menuItems = [
-    {
-      id: 'operaciones',
-      label: 'Operaciones',
+    can("operaciones.read") && {
+      id: "operaciones",
+      label: "Operaciones",
       icon: FileText,
-      description: 'Logística y seguimiento'
+      description: "Logística y seguimiento"
     },
-    {
-      id: 'ventas',
-      label: 'Ventas CRM',
+
+    can("leads.read") && {
+      id: "ventas",
+      label: "Ventas CRM",
       icon: Briefcase,
-      description: 'Prospectos, cotizaciones y seguimiento'
+      description: "Prospectos"
     },
-    {
-      id: 'pagos',
-      label: 'Pagos',
-      icon: DollarSign,
-      description: 'Control financiero'
+
+    can("pagos.read") && {
+      id: "pagos",
+      label: "Pagos",
+      icon: DollarSign
     },
-    {
-      id: 'facturas',
-      label: 'Facturación',
-      icon: Receipt,
-      description: 'Emisión y registro fiscal'
+
+    can("facturas.read") && {
+      id: "facturas",
+      label: "Facturación",
+      icon: Receipt
     },
-    {
-      id: 'clientes',
-      label: 'Clientes',
-      icon: Users,
-      description: 'Directorio y gestión de cuentas'
+
+    can("clientes.read") && {
+      id: "clientes",
+      label: "Clientes",
+      icon: Users
     },
-    {
-      id: 'proveedores',
-      label: 'Proveedores',
-      icon: Truck,
-      description: 'Directorio de proveedores y contactos'
-    },
-    {
-      id: 'finanzas',
-      label: 'Finanzas',
-      icon: PieChart,
-      description: 'Análisis financiero y balances'
-    },
-    {
-      id: 'archivos',
-      label: 'Gestión de Archivos',
-      icon: FolderOpen,
-      description: 'Documentos y archivos del equipo'
-    },
-    {
-      id: 'checklist-files',
-      label: 'Checklist Supabase (Archivos)',
-      icon: FileCheck,
-      description: 'Diagnóstico de sistema de archivos'
+
+    can("roles.read") && {
+      id: "roles",
+      label: "Roles & Permisos",
+      icon: Settings
     }
-  ];
+
+  ].filter(Boolean);
 
   const activeItem = menuItems.find(item => item.id === activeView);
 
@@ -260,6 +248,7 @@ function Dashboard() {
                   {activeView === 'proveedores' && <ProveedoresSection />}
                   {activeView === 'archivos' && <FileManager />}
                   {activeView === 'checklist-files' && <ChecklistSupabaseArchivos />}
+                  {activeView === "roles" && <AdminRolesPanel />}
                 </motion.div>
               </AnimatePresence>
             </div>

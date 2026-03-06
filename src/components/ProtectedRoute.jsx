@@ -1,9 +1,24 @@
+import { Navigate } from "react-router-dom";
+import { usePermissions } from "@/hooks/usePermissions";
 
-import React from 'react';
+export default function ProtectedRoute({ permission, children }) {
 
-// Pass-through component - Protection disabled
-const ProtectedRoute = ({ children }) => {
+  const { can, loading } = usePermissions();
+
+  if (loading) {
+
+    return (
+      <div className="flex items-center justify-center h-screen text-slate-500">
+        Cargando permisos...
+      </div>
+    );
+
+  }
+
+  if (!can(permission)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return children;
-};
 
-export default ProtectedRoute;
+}
