@@ -63,13 +63,6 @@ function Dashboard() {
       description: "Logística y seguimiento"
     },
 
-    can("leads.read") && {
-      id: "ventas",
-      label: "Ventas CRM",
-      icon: Briefcase,
-      description: "Prospectos"
-    },
-
     can("pagos.read") && {
       id: "pagos",
       label: "Pagos",
@@ -88,10 +81,10 @@ function Dashboard() {
       icon: Users
     },
 
-    {
-      id: "roles",
-      label: "Roles & Permisos",
-      icon: Settings
+    can("proveedores.read") && {
+      id: "proveedores",
+      label: "Proveedores",
+      icon: Users
     }
 
   ].filter(Boolean);
