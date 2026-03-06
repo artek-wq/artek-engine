@@ -85,7 +85,13 @@ function Dashboard() {
       id: "proveedores",
       label: "Proveedores",
       icon: Users
-    }
+    },
+
+    can("archivos.read") && {
+      id: "archivos",
+      label: "Gestión de Archivos",
+      icon: FolderOpen,
+    },
 
   ].filter(Boolean);
 
