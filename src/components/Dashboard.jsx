@@ -88,7 +88,7 @@ function Dashboard() {
       icon: Users
     },
 
-    can("roles.read") && {
+    {
       id: "roles",
       label: "Roles & Permisos",
       icon: Settings
