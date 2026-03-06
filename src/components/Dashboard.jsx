@@ -91,7 +91,7 @@ function Dashboard() {
       id: "archivos",
       label: "Gestión de Archivos",
       icon: FolderOpen,
-    },
+    }
 
   ].filter(Boolean);
 
