@@ -87,6 +87,12 @@ function Dashboard() {
       icon: Users
     },
 
+    can("users.read") && {
+      id: "users",
+      label: "Usuarios",
+      icon: Users
+    },
+
     can("archivos.read") && {
       id: "archivos",
       label: "Gestión de Archivos",
@@ -248,6 +254,7 @@ function Dashboard() {
                   {activeView === 'archivos' && <FileManager />}
                   {activeView === 'checklist-files' && <ChecklistSupabaseArchivos />}
                   {activeView === "roles" && <AdminRolesPanel />}
+                  {activeView === 'users' && <UsersSection />}
                 </motion.div>
               </AnimatePresence>
             </div>
