@@ -38,6 +38,8 @@ export function usePermissions() {
                 map[key] = true;
             });
 
+            console.log("PERMISSIONS MAP:", map);
+
             setPermissions(map);
 
         } catch (err) {

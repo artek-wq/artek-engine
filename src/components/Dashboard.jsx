@@ -17,6 +17,7 @@ import ChecklistSupabaseArchivos from '@/components/ChecklistSupabaseArchivos';
 import AdminModal from '@/components/AdminModal';
 import { usePermissions } from "@/hooks/usePermissions";
 import AdminRolesPanel from "@/components/AdminRolesPanel";
+import UsersSection from '@/components/UsersSection';
 
 function Dashboard() {
   useEffect(() => {
