@@ -9,9 +9,7 @@ function UsersSection() {
     const { toast } = useToast();
 
     useEffect(() => {
-
         loadUsers();
-
     }, []);
 
     const loadUsers = async () => {
@@ -38,15 +36,15 @@ function UsersSection() {
 
     const createUser = async () => {
 
-        const email = prompt("Email del usuario")
-        const password = prompt("Password")
+        const email = prompt("Email del usuario");
+        const password = prompt("Password");
 
-        if (!email || !password) return
+        if (!email || !password) return;
 
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
             email,
             password
-        })
+        });
 
         if (error) {
 
@@ -54,18 +52,19 @@ function UsersSection() {
                 title: "Error creando usuario",
                 description: error.message,
                 variant: "destructive"
-            })
+            });
 
-            return
+            return;
+
         }
 
         toast({
             title: "Usuario creado"
-        })
+        });
 
-        loadUsers()
+        loadUsers();
 
-    }
+    };
 
     const changeRole = async (id, role) => {
 
@@ -85,6 +84,10 @@ function UsersSection() {
             return;
         }
 
+        toast({
+            title: "Rol actualizado"
+        });
+
         loadUsers();
 
     };
@@ -93,9 +96,18 @@ function UsersSection() {
 
         <div className="space-y-6">
 
-            <h2 className="text-xl font-bold">Usuarios</h2>
+            {/* HEADER */}
+            <div className="flex justify-between items-center">
 
-            <div className="bg-white border rounded-xl">
+                <h2 className="text-xl font-bold">Usuarios</h2>
+
+                <Button onClick={createUser}>
+                    Nuevo Usuario
+                </Button>
+
+            </div>
+
+            <div className="bg-white border rounded-xl overflow-hidden">
 
                 <table className="w-full text-sm">
 
@@ -112,9 +124,11 @@ function UsersSection() {
 
                         {users.map(user => (
 
-                            <tr key={user.id} className="border-b">
+                            <tr key={user.id} className="border-b hover:bg-slate-50">
 
-                                <td className="p-3">{user.id}</td>
+                                <td className="p-3 font-mono text-xs">
+                                    {user.id.slice(0, 8)}...
+                                </td>
 
                                 <td className="p-3 capitalize">
                                     {user.role}
@@ -125,10 +139,6 @@ function UsersSection() {
                                 </td>
 
                                 <td className="p-3 flex gap-2">
-
-                                    <Button onClick={createUser}>
-                                        Nuevo Usuario
-                                    </Button>
 
                                     <Button
                                         size="sm"
