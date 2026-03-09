@@ -36,6 +36,37 @@ function UsersSection() {
 
     };
 
+    const createUser = async () => {
+
+        const email = prompt("Email del usuario")
+        const password = prompt("Password")
+
+        if (!email || !password) return
+
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password
+        })
+
+        if (error) {
+
+            toast({
+                title: "Error creando usuario",
+                description: error.message,
+                variant: "destructive"
+            })
+
+            return
+        }
+
+        toast({
+            title: "Usuario creado"
+        })
+
+        loadUsers()
+
+    }
+
     const changeRole = async (id, role) => {
 
         const { error } = await supabase
@@ -94,6 +125,10 @@ function UsersSection() {
                                 </td>
 
                                 <td className="p-3 flex gap-2">
+
+                                    <Button onClick={createUser}>
+                                        Nuevo Usuario
+                                    </Button>
 
                                     <Button
                                         size="sm"
