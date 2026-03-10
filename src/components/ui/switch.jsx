@@ -1,8 +1,10 @@
-import * as React from "react";
+import React from "react";
 
-export function Switch({ checked, onCheckedChange }) {
+export function Switch({ checked = false, onCheckedChange }) {
+
     return (
         <button
+            type="button"
             onClick={() => onCheckedChange(!checked)}
             className={`w-10 h-6 flex items-center rounded-full p-1 transition ${checked ? "bg-blue-600" : "bg-gray-300"
                 }`}
@@ -13,4 +15,5 @@ export function Switch({ checked, onCheckedChange }) {
             />
         </button>
     );
+
 }
