@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/customSupabaseClient";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function AdminRolesPanel() {
 
@@ -29,7 +31,6 @@ export default function AdminRolesPanel() {
         setRoles(r || []);
         setPermissions(p || []);
         setRolePermissions(rp || []);
-
     };
 
     const hasPermission = (roleId, permissionId) => {
@@ -75,45 +76,95 @@ export default function AdminRolesPanel() {
 
     };
 
+    // Agrupar permisos por módulo
+    const groupedPermissions = permissions.reduce((acc, p) => {
+
+        if (!acc[p.resource]) {
+            acc[p.resource] = [];
+        }
+
+        acc[p.resource].push(p);
+
+        return acc;
+
+    }, {});
+
     return (
 
-        <div className="space-y-6">
+        <Tabs defaultValue={roles[0]?.id} className="space-y-6">
 
+            {/* Tabs de roles */}
+            <TabsList>
+
+                {roles.map(role => (
+
+                    <TabsTrigger
+                        key={role.id}
+                        value={role.id}
+                        className="capitalize"
+                    >
+                        {role.name}
+                    </TabsTrigger>
+
+                ))}
+
+            </TabsList>
+
+            {/* Contenido de cada rol */}
             {roles.map(role => (
 
-                <div key={role.id} className="border p-4 rounded-lg">
+                <TabsContent key={role.id} value={role.id}>
 
-                    <h3 className="font-bold mb-3">{role.name}</h3>
+                    <div className="border p-4 rounded-lg">
 
-                    <div className="grid grid-cols-4 gap-2">
+                        {/* Encabezado matriz */}
+                        <div className="grid grid-cols-5 gap-4 text-xs font-semibold text-slate-500 uppercase mb-3 border-b pb-2">
+                            <div>Módulo</div>
+                            <div>Read</div>
+                            <div>Create</div>
+                            <div>Update</div>
+                            <div>Delete</div>
+                        </div>
 
-                        {permissions.map(p => {
+                        {Object.entries(groupedPermissions).map(([resource, perms]) => (
 
-                            const active = hasPermission(role.id, p.id);
+                            <div key={resource} className="grid grid-cols-5 gap-4 items-center py-2 border-b last:border-0">
 
-                            return (
+                                <div className="font-medium capitalize text-slate-700">
+                                    {resource}
+                                </div>
 
-                                <Button
-                                    key={p.id}
-                                    size="sm"
-                                    variant={active ? "default" : "outline"}
-                                    className={active ? "bg-blue-600 hover:bg-blue-700" : ""}
-                                    onClick={() => togglePermission(role.id, p.id)}
-                                >
-                                    {p.resource}.{p.action}
-                                </Button>
+                                {["read", "create", "update", "delete"].map(action => {
 
-                            );
+                                    const permission = perms.find(p => p.action === action);
 
-                        })}
+                                    if (!permission) return <div key={action}></div>;
+
+                                    const active = hasPermission(role.id, permission.id);
+
+                                    return (
+
+                                        <Switch
+                                            key={action}
+                                            checked={active}
+                                            onCheckedChange={() => togglePermission(role.id, permission.id)}
+                                        />
+
+                                    );
+
+                                })}
+
+                            </div>
+
+                        ))}
 
                     </div>
 
-                </div>
+                </TabsContent>
 
             ))}
 
-        </div>
+        </Tabs>
 
     );
 
