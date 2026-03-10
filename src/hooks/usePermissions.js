@@ -43,7 +43,7 @@ export function usePermissions() {
             const { data, error } = await supabase
                 .from("v_role_permissions")
                 .select("resource, action, enabled")
-                .eq("role", role)
+                .eq("role_name", role)
                 .eq("enabled", true);
 
             if (error) throw error;
