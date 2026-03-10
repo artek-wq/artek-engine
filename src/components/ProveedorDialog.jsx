@@ -120,7 +120,7 @@ function ProveedorDialog({ open, onOpenChange, onSave, initialData }) {
 
           {/* Información General */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase border-b pb-2">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-2">
               Información General
             </h3>
 
@@ -143,7 +143,7 @@ function ProveedorDialog({ open, onOpenChange, onSave, initialData }) {
                 <input
                   value={formData.nombreComercial}
                   onChange={(e) => setFormData({ ...formData, nombreComercial: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg mt-1"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1 text-slate-800"
                 />
               </div>
 
@@ -181,7 +181,7 @@ function ProveedorDialog({ open, onOpenChange, onSave, initialData }) {
 
           {/* Contactos */}
           <div className="space-y-4">
-            <div className="flex justify-between items-center border-b pb-2">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <h3 className={`text-sm font-bold uppercase ${errors.contactos ? 'text-red-500' : ''}`}>
                 Contactos *
               </h3>
@@ -192,7 +192,7 @@ function ProveedorDialog({ open, onOpenChange, onSave, initialData }) {
             </div>
 
             {formData.contactos.map((contacto, index) => (
-              <div key={index} className="bg-slate-50 p-4 rounded-lg border relative">
+              <div key={index} className="bg-slate-50 border border-slate-200 rounded-xl p-4 relative group">
                 <Button
                   type="button"
                   variant="ghost"
