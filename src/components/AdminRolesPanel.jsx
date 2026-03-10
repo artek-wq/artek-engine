@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/customSupabaseClient";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function AdminRolesPanel() {
