@@ -313,7 +313,6 @@ function PagosSection() {
           setEditingPago(p);
           setDialogOpen(true);
         }}
-        onGeneratePDF={handleGeneratePDF}
       />
     </div>
   );
