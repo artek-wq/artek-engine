@@ -136,14 +136,8 @@ function PagosSection() {
     setDetailModalOpen(true);
   };
 
-  const handleGeneratePDF = (pago) => {
-    toast({
-      title: "Generando Comprobante",
-      description: `Comprobante de pago para ${pago.referencia}...`,
-    });
-  };
-
   const getDaysRemaining = (fecha_limite) => {
+
     // Current date is 2025-12-09
     const today = new Date('2025-12-09T00:00:00Z');
     const limit = new Date(fecha_limite + 'T00:00:00Z'); // Ensure comparison is date-only
