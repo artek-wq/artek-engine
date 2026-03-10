@@ -1,4 +1,4 @@
-
+import { supabase } from "@/lib/customSupabaseClient";
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -14,30 +14,72 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
     monto: '',
     divisa: 'USD',
     status: 'Pendiente',
-    fechaLimite: ''
+    fecha_limite: ''
   });
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedOperaciones = localStorage.getItem('artek_operaciones');
-    if (savedOperaciones) {
-      setOperaciones(JSON.parse(savedOperaciones));
-    }
+    fetchOperaciones();
   }, []);
 
-  useEffect(() => {
-    if (initialData) {
-      setFormData(initialData);
-    } else {
-      setFormData({
-        referencia: '',
-        cliente: '',
-        monto: '',
-        divisa: 'USD',
-        status: 'Pendiente',
-        fechaLimite: ''
+  const fetchOperaciones = async () => {
+
+    const { data, error } = await supabase
+      .from("operaciones")
+      .select(`
+      id,
+      referencia,
+      clientes(nombre)
+    `);
+
+    if (error) {
+
+      toast({
+        title: "Error cargando operaciones",
+        description: error.message,
+        variant: "destructive"
       });
+
+      return;
+
     }
+
+    const formatted = (data || []).map(op => ({
+      id: op.id,
+      referencia: op.referencia,
+      cliente: op.clientes?.nombre || ""
+    }));
+
+    setOperaciones(formatted);
+
+  };
+
+  useEffect(() => {
+
+    if (initialData) {
+
+      setFormData({
+        referencia: initialData.referencia || "",
+        cliente: initialData.cliente || "",
+        monto: initialData.monto || "",
+        divisa: initialData.divisa || "USD",
+        status: initialData.status || "Pendiente",
+        fechaLimite: initialData.fecha_limite || ""
+      });
+
+    } else {
+
+      setFormData({
+        referencia: "",
+        cliente: "",
+        monto: "",
+        divisa: "USD",
+        status: "Pendiente",
+        fechaLimite: ""
+      });
+
+    }
+
   }, [initialData, open]);
 
   const handleReferenciaChange = (referencia) => {
@@ -57,7 +99,20 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
   };
 
   const handleSubmit = async (e) => {
+
     e.preventDefault();
+
+    if (!formData.referencia || !formData.monto || !formData.fechaLimite) {
+
+      toast({
+        title: "Campos incompletos",
+        description: "Referencia, monto y fecha límite son obligatorios.",
+        variant: "destructive"
+      });
+
+      return;
+
+    }
 
     try {
       await onSave(formData);
@@ -78,7 +133,7 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
         <DialogHeader>
           <DialogTitle>{initialData ? 'Editar Pago' : 'Nuevo Pago'}</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -155,13 +210,13 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
             </div>
 
             <div>
-              <Label htmlFor="fechaLimite">Fecha Límite *</Label>
+              <Label htmlFor="fecha_limite">Fecha Límite *</Label>
               <input
-                id="fechaLimite"
+                id="fecha_limite"
                 type="date"
                 required
-                value={formData.fechaLimite}
-                onChange={(e) => setFormData({ ...formData, fechaLimite: e.target.value })}
+                value={formData.fecha_limite}
+                onChange={(e) => setFormData({ ...formData, fecha_limite: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1 text-slate-800"
               />
             </div>

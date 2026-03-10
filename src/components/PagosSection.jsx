@@ -6,64 +6,129 @@ import PagoDialog from '@/components/PagoDialog';
 import PagoCard from '@/components/PagoCard';
 import DetailModal from '@/components/DetailModal';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from "@/lib/customSupabaseClient";
 
 function PagosSection() {
+
   const [pagos, setPagos] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPago, setEditingPago] = useState(null);
   const [filterType, setFilterType] = useState('all');
-  
+
   // Detail Modal State
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedPago, setSelectedPago] = useState(null);
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    const savedPagos = localStorage.getItem('artek_pagos');
-    if (savedPagos) {
-      setPagos(JSON.parse(savedPagos));
+  const fetchPagos = async () => {
+
+    const { data, error } = await supabase
+      .from("pagos")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+
+      toast({
+        title: "Error cargando pagos",
+        description: error.message,
+        variant: "destructive"
+      });
+      return;
     }
+
+    setPagos(data || []);
+
+  };
+
+  useEffect(() => {
+    fetchPagos();
   }, []);
 
-  const savePagos = (newPagos) => {
-    setPagos(newPagos);
-    localStorage.setItem('artek_pagos', JSON.stringify(newPagos));
+  const handleAddPago = async (pagoData) => {
+
+    const { error } = await supabase
+      .from("pagos")
+      .insert([{
+        referencia: pagoData.referencia,
+        monto: pagoData.monto,
+        divisa: pagoData.divisa,
+        status: pagoData.status,
+        fecha_limite: pagoData.fecha_limite
+      }]);
+
+    if (error) {
+      toast({
+        title: "Error creando pago",
+        description: error.message,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    toast({
+      title: "Pago creado"
+    });
+
+    fetchPagos();
+
   };
 
-  const handleAddPago = (pagoData) => {
-    const newPago = {
-      id: Date.now().toString(),
-      ...pagoData,
-      createdAt: new Date().toISOString()
-    };
-    savePagos([...pagos, newPago]);
+  const handleEditPago = async (pagoData) => {
+
+    const { error } = await supabase
+      .from("pagos")
+      .update({
+        referencia: pagoData.referencia,
+        monto: pagoData.monto,
+        divisa: pagoData.divisa,
+        status: pagoData.status,
+        fecha_limite: pagoData.fecha_limite,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", editingPago.id);
+
+    if (error) {
+      toast({
+        title: "Error actualizando pago",
+        description: error.message,
+        variant: "destructive"
+      });
+      return;
+    }
+
     toast({
-      title: "Pago creado",
-      description: "El pago se ha registrado exitosamente.",
+      title: "Pago actualizado"
     });
+
+    fetchPagos();
+
   };
 
-  const handleEditPago = (pagoData) => {
-    const updatedPagos = pagos.map(p => 
-      p.id === editingPago.id ? { ...p, ...pagoData } : p
-    );
-    savePagos(updatedPagos);
-    toast({
-      title: "Pago actualizado",
-      description: "Los cambios se han guardado exitosamente.",
-    });
-  };
+  const handleDeletePago = async (id) => {
 
-  const handleDeletePago = (id) => {
-    // Support passing object or ID
-    const targetId = typeof id === 'object' ? id.id : id;
-    savePagos(pagos.filter(p => p.id !== targetId));
+    const { error } = await supabase
+      .from("pagos")
+      .delete()
+      .eq("id", Id);
+
+    if (error) {
+      toast({
+        title: "Error eliminando pago",
+        description: error.message,
+        variant: "destructive"
+      });
+      return;
+    }
+
     toast({
-      title: "Pago eliminado",
-      description: "El pago ha sido eliminado.",
+      title: "Pago eliminado"
     });
+
+    fetchPagos();
+
   };
 
   const handleCardClick = (pago) => {
@@ -78,10 +143,10 @@ function PagosSection() {
     });
   };
 
-  const getDaysRemaining = (fechaLimite) => {
+  const getDaysRemaining = (fecha_limite) => {
     // Current date is 2025-12-09
-    const today = new Date('2025-12-09T00:00:00Z'); 
-    const limit = new Date(fechaLimite + 'T00:00:00Z'); // Ensure comparison is date-only
+    const today = new Date('2025-12-09T00:00:00Z');
+    const limit = new Date(fecha_limite + 'T00:00:00Z'); // Ensure comparison is date-only
     const diffTime = limit.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
@@ -89,7 +154,7 @@ function PagosSection() {
 
   const getColorCategory = (pago) => {
     if (pago.status === 'Pagado') return 'blue'; // New condition for "Pagado" status
-    const days = getDaysRemaining(pago.fechaLimite);
+    const days = getDaysRemaining(pago.fecha_limite);
     if (days > 7) return 'green';
     if (days >= 3 && days <= 6) return 'orange';
     return 'red';
@@ -97,14 +162,14 @@ function PagosSection() {
 
   const filteredPagos = pagos.filter(pago => {
     const matchesSearch = pago.referencia.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         pago.cliente.toLowerCase().includes(searchTerm.toLowerCase());
-    
+      pago.cliente.toLowerCase().includes(searchTerm.toLowerCase());
+
     if (filterType === 'all') return matchesSearch;
     if (filterType === 'paid') return matchesSearch && pago.status === 'Pagado'; // Filter for "Pagado"
     if (filterType === 'pending_green') return matchesSearch && getColorCategory(pago) === 'green';
     if (filterType === 'pending_orange') return matchesSearch && getColorCategory(pago) === 'orange';
     if (filterType === 'pending_red') return matchesSearch && getColorCategory(pago) === 'red';
-    
+
     // Fallback for custom filter types (if added later)
     return matchesSearch && getColorCategory(pago) === filterType;
   });
@@ -121,7 +186,7 @@ function PagosSection() {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
           <h2 className="text-xl font-semibold text-slate-800">Gestión de Pagos</h2>
-          <Button 
+          <Button
             onClick={() => {
               setEditingPago(null);
               setDialogOpen(true);
@@ -207,21 +272,21 @@ function PagosSection() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {pagosList.map(pago => (
                     <div key={pago.id} onClick={() => handleCardClick(pago)} className="cursor-pointer">
-                        <PagoCard
+                      <PagoCard
                         pago={pago}
                         onEdit={(e) => {
-                            e && e.stopPropagation();
-                            setEditingPago(pago);
-                            setDialogOpen(true);
+                          e && e.stopPropagation();
+                          setEditingPago(pago);
+                          setDialogOpen(true);
                         }}
                         onDelete={(e) => {
-                            e && e.stopPropagation();
-                            handleDeletePago(pago.id);
+                          e && e.stopPropagation();
+                          handleDeletePago(pago.id);
                         }}
                         // Pass the payment object directly to getColorCategory and getDaysRemaining
                         colorCategory={getColorCategory(pago)}
-                        daysRemaining={getDaysRemaining(pago.fechaLimite)}
-                        />
+                        daysRemaining={getDaysRemaining(pago.fecha_limite)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -244,7 +309,7 @@ function PagosSection() {
         initialData={editingPago}
       />
 
-      <DetailModal 
+      <DetailModal
         open={detailModalOpen}
         onOpenChange={setDetailModalOpen}
         data={selectedPago}
