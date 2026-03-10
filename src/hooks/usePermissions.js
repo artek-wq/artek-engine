@@ -24,9 +24,26 @@ export function usePermissions() {
 
         try {
 
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) return;
+
+            // obtener rol del usuario
+            const { data: roleData } = await supabase
+                .from("user_roles")
+                .select("role")
+                .eq("user_id", user.id)
+                .single();
+
+            if (!roleData) return;
+
+            const role = roleData.role;
+
+            // obtener permisos del rol
             const { data, error } = await supabase
                 .from("v_role_permissions")
                 .select("resource, action, enabled")
+                .eq("role", role)
                 .eq("enabled", true);
 
             if (error) throw error;
