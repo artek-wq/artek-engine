@@ -94,6 +94,13 @@ function Dashboard() {
       icon: Users
     },
 
+    can("roles.read") && {
+      id: "roles",
+      label: "Permisos",
+      icon: Settings,
+      description: "Gestión de roles y permisos"
+    },
+
     can("archivos.read") && {
       id: "archivos",
       label: "Gestión de Archivos",
