@@ -26,11 +26,13 @@ function PagosSection() {
 
     const { data, error } = await supabase
       .from("pagos")
-      .select("*")
+      .select(`
+      *,
+      clientes(nombre)
+    `)
       .order("created_at", { ascending: false });
 
     if (error) {
-
       toast({
         title: "Error cargando pagos",
         description: error.message,
@@ -39,8 +41,12 @@ function PagosSection() {
       return;
     }
 
-    setPagos(data || []);
-
+    setPagos(
+      (data || []).map(p => ({
+        ...p,
+        cliente: p.clientes?.nombre || ""
+      }))
+    );
   };
 
   useEffect(() => {
@@ -49,9 +55,9 @@ function PagosSection() {
 
   const handleAddPago = async (pagoData) => {
 
-
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase
+
+    const { data, error } = await supabase
       .from("pagos")
       .insert([{
         referencia: pagoData.referencia,
@@ -60,8 +66,8 @@ function PagosSection() {
         divisa: pagoData.divisa,
         status: pagoData.status,
         fecha_limite: pagoData.fecha_limite,
-        proveedor_id: pagoData.proveedor_id,
-        concepto: pagoData.concepto,
+        proveedor_id: pagoData.proveedor_id || null,
+        concepto: pagoData.concepto || null,
         user_id: user.id
       }]);
 
@@ -79,7 +85,6 @@ function PagosSection() {
     });
 
     fetchPagos();
-
   };
 
   const handleEditPago = async (pagoData) => {
@@ -118,7 +123,7 @@ function PagosSection() {
     const { error } = await supabase
       .from("pagos")
       .delete()
-      .eq("id", Id);
+      .eq("id", id);
 
     if (error) {
       toast({
@@ -145,7 +150,7 @@ function PagosSection() {
   const getDaysRemaining = (fecha_limite) => {
 
     // Current date is 2025-12-09
-    const today = new Date('2025-12-09T00:00:00Z');
+    const today = new Date();
     const limit = new Date(fecha_limite + 'T00:00:00Z'); // Ensure comparison is date-only
     const diffTime = limit.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -162,7 +167,7 @@ function PagosSection() {
 
   const filteredPagos = pagos.filter(pago => {
     const matchesSearch = pago.referencia.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pago.cliente.toLowerCase().includes(searchTerm.toLowerCase());
+      (pago.cliente || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     if (filterType === 'all') return matchesSearch;
     if (filterType === 'paid') return matchesSearch && pago.status === 'Pagado'; // Filter for "Pagado"
