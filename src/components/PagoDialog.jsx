@@ -12,6 +12,7 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
   const [formData, setFormData] = useState({
     referencia: '',
     cliente: '',
+    cliente_id: '',
     monto: '',
     divisa: 'USD',
     status: 'Pendiente',
@@ -67,7 +68,8 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
     const formatted = (data || []).map(op => ({
       id: op.id,
       referencia: op.referencia,
-      cliente: op.clientes?.nombre || ""
+      cliente: op.clientes?.nombre || "",
+      cliente_id: op.cliente_id
     }));
 
     setOperaciones(formatted);
@@ -108,7 +110,8 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
       setFormData(prev => ({
         ...prev,
         referencia,
-        cliente: operacion.cliente
+        cliente: operacion.cliente,
+        cliente_id: operacion.cliente_id
       }));
     } else {
       setFormData({

@@ -53,6 +53,7 @@ function PagosSection() {
       .from("pagos")
       .insert([{
         referencia: pagoData.referencia,
+        cliente_id: pagoData.cliente_id,
         monto: pagoData.monto,
         divisa: pagoData.divisa,
         status: pagoData.status,
