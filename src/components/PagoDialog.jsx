@@ -8,19 +8,39 @@ import { logError } from '@/lib/ErrorLogger';
 
 function PagoDialog({ open, onOpenChange, onSave, initialData }) {
   const [operaciones, setOperaciones] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
   const [formData, setFormData] = useState({
     referencia: '',
     cliente: '',
     monto: '',
     divisa: 'USD',
     status: 'Pendiente',
-    fecha_limite: ''
+    fecha_limite: '',
+    proveedor_id: '',
+    concepto: ''
   });
   const { toast } = useToast();
 
   useEffect(() => {
     fetchOperaciones();
+    fetchProveedores();
   }, []);
+
+  const fetchProveedores = async () => {
+
+    const { data, error } = await supabase
+      .from("proveedores")
+      .select("id, razon_social")
+      .order("razon_social");
+
+    if (error) {
+      console.error("Error cargando proveedores", error);
+      return;
+    }
+
+    setProveedores(data || []);
+
+  };
 
   const fetchOperaciones = async () => {
 
@@ -64,7 +84,7 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
         monto: initialData.monto || "",
         divisa: initialData.divisa || "USD",
         status: initialData.status || "Pendiente",
-        fechaLimite: initialData.fecha_limite || ""
+        fecha_limite: initialData.fecha_limite || ""
       });
 
     } else {
@@ -75,7 +95,7 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
         monto: "",
         divisa: "USD",
         status: "Pendiente",
-        fechaLimite: ""
+        fecha_limite: ""
       });
 
     }
@@ -85,11 +105,11 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
   const handleReferenciaChange = (referencia) => {
     const operacion = operaciones.find(op => op.referencia === referencia);
     if (operacion) {
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         referencia,
         cliente: operacion.cliente
-      });
+      }));
     } else {
       setFormData({
         ...formData,
@@ -102,7 +122,7 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
 
     e.preventDefault();
 
-    if (!formData.referencia || !formData.monto || !formData.fechaLimite) {
+    if (!formData.referencia || !formData.monto || !formData.fecha_limite) {
 
       toast({
         title: "Campos incompletos",
@@ -166,6 +186,31 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
             </div>
 
             <div>
+              <Label htmlFor="proveedor">Proveedor</Label>
+
+              <select
+                id="proveedor"
+                value={formData.proveedor_id}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    proveedor_id: e.target.value
+                  })
+                }
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1 text-slate-800"
+              >
+                <option value="">Seleccionar proveedor</option>
+
+                {proveedores.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.razon_social}
+                  </option>
+                ))}
+
+              </select>
+            </div>
+
+            <div>
               <Label htmlFor="monto">Monto *</Label>
               <input
                 id="monto"
@@ -173,7 +218,30 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
                 step="0.01"
                 required
                 value={formData.monto}
-                onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
+                onChange={(e) =>
+                  setFormData(prev => ({
+                    ...prev,
+                    monto: e.target.value
+                  }))
+                }
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1 text-slate-800"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <Label htmlFor="concepto">Concepto</Label>
+
+              <input
+                id="concepto"
+                type="text"
+                value={formData.concepto}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    concepto: e.target.value
+                  })
+                }
+                placeholder="Descripción del pago"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1 text-slate-800"
               />
             </div>
