@@ -57,7 +57,9 @@ function PagosSection() {
         monto: pagoData.monto,
         divisa: pagoData.divisa,
         status: pagoData.status,
-        fecha_limite: pagoData.fecha_limite
+        fecha_limite: pagoData.fecha_limite,
+        proveedor_id: pagoData.proveedor_id,
+        concepto: pagoData.concepto
       }]);
 
     if (error) {

@@ -50,6 +50,7 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
       .select(`
       id,
       referencia,
+      cliente_id,
       clientes(nombre)
     `);
 
@@ -114,10 +115,12 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
         cliente_id: operacion.cliente_id
       }));
     } else {
-      setFormData({
-        ...formData,
-        referencia
-      });
+      setFormData(prev => ({
+        ...prev,
+        referencia,
+        cliente: operacion.cliente,
+        cliente_id: operacion.cliente_id
+      }));
     }
   };
 
