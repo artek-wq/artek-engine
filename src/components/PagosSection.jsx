@@ -49,7 +49,9 @@ function PagosSection() {
 
   const handleAddPago = async (pagoData) => {
 
-    const { error } = await supabase
+
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase
       .from("pagos")
       .insert([{
         referencia: pagoData.referencia,
@@ -59,7 +61,8 @@ function PagosSection() {
         status: pagoData.status,
         fecha_limite: pagoData.fecha_limite,
         proveedor_id: pagoData.proveedor_id,
-        concepto: pagoData.concepto
+        concepto: pagoData.concepto,
+        user_id: user.id
       }]);
 
     if (error) {
