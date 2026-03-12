@@ -184,7 +184,7 @@ function PagosSection() {
     const total = pagosList.reduce((sum, p) => sum + Number(p.monto || 0), 0);
 
     const pagado = pagosList
-      .filter(p => p.status === "Pagado")
+      .filter(p => p.status === "Pagado" || p.status === "Parcial")
       .reduce((sum, p) => sum + Number(p.monto || 0), 0);
 
     const pendiente = total - pagado;
@@ -209,25 +209,7 @@ function PagosSection() {
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
-          const totales = getTotales(pagosList);
 
-          <h3 className="text-lg font-semibold text-slate-800">{referencia}</h3>
-
-          <div className="flex gap-3 mb-4 text-sm">
-
-            <div className="bg-slate-100 px-3 py-1 rounded">
-              Total: ${totales.total.toLocaleString()}
-            </div>
-
-            <div className="bg-green-100 text-green-700 px-3 py-1 rounded">
-              Pagado: ${totales.pagado.toLocaleString()}
-            </div>
-
-            <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded">
-              Pendiente: ${totales.pendiente.toLocaleString()}
-            </div>
-
-          </div>
           <Button
             onClick={() => {
               setEditingPago(null);
@@ -302,60 +284,67 @@ function PagosSection() {
 
         <div className="space-y-6">
           <AnimatePresence>
-            {Object.entries(groupedPagos).map(([referencia, pagosList]) => (
-              <motion.div
-                key={referencia}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="border border-slate-200 rounded-lg p-4"
-              >
-                <div className="mb-4">
+            {Object.entries(groupedPagos).map(([referencia, pagosList]) => {
 
-                  <h3 className="text-lg font-semibold text-slate-800">
-                    {referencia}
-                  </h3>
+              const totales = getTotales(pagosList);
 
-                  <div className="flex gap-3 mt-2 text-sm">
+              return (
 
-                    <div className="bg-slate-100 px-3 py-1 rounded">
-                      Total: ${totales.total.toLocaleString()}
-                    </div>
+                <motion.div
+                  key={referencia}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="border border-slate-200 rounded-lg p-4"
+                >
+                  <div className="mb-4">
 
-                    <div className="bg-green-100 text-green-700 px-3 py-1 rounded">
-                      Pagado: ${totales.pagado.toLocaleString()}
-                    </div>
+                    <h3 className="text-lg font-semibold text-slate-800">
+                      {referencia}
+                    </h3>
 
-                    <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded">
-                      Pendiente: ${totales.pendiente.toLocaleString()}
+                    <div className="flex gap-3 mt-2 text-sm">
+
+                      <div className="bg-slate-100 px-3 py-1 rounded">
+                        Total: ${totales.total.toLocaleString()}
+                      </div>
+
+                      <div className="bg-green-100 text-green-700 px-3 py-1 rounded">
+                        Pagado: ${totales.pagado.toLocaleString()}
+                      </div>
+
+                      <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded">
+                        Pendiente: ${totales.pendiente.toLocaleString()}
+                      </div>
+
                     </div>
 
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {pagosList.map(pago => (
+                      <div key={pago.id} onClick={() => handleCardClick(pago)} className="cursor-pointer">
+                        <PagoCard
+                          pago={pago}
+                          onEdit={(e) => {
+                            e && e.stopPropagation();
+                            setEditingPago(pago);
+                            setDialogOpen(true);
+                          }}
+                          onDelete={(e) => {
+                            e && e.stopPropagation();
+                            handleDeletePago(pago.id);
+                          }}
+                          // Pass the payment object directly to getColorCategory and getDaysRemaining
+                          colorCategory={getColorCategory(pago)}
+                          daysRemaining={getDaysRemaining(pago.fecha_limite)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              );
+            })}
 
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {pagosList.map(pago => (
-                    <div key={pago.id} onClick={() => handleCardClick(pago)} className="cursor-pointer">
-                      <PagoCard
-                        pago={pago}
-                        onEdit={(e) => {
-                          e && e.stopPropagation();
-                          setEditingPago(pago);
-                          setDialogOpen(true);
-                        }}
-                        onDelete={(e) => {
-                          e && e.stopPropagation();
-                          handleDeletePago(pago.id);
-                        }}
-                        // Pass the payment object directly to getColorCategory and getDaysRemaining
-                        colorCategory={getColorCategory(pago)}
-                        daysRemaining={getDaysRemaining(pago.fecha_limite)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            ))}
           </AnimatePresence>
         </div>
 
@@ -384,6 +373,7 @@ function PagosSection() {
           setDialogOpen(true);
         }}
       />
+
     </div>
   );
 }
