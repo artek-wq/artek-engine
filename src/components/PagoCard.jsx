@@ -36,7 +36,12 @@ function PagoCard({ pago, onEdit, onDelete, colorCategory, daysRemaining }) {
 
   // If status is 'Pagado', daysRemaining should be 0 and percentage 100
   const displayDays = pago.status === 'Pagado' ? 0 : daysRemaining;
-  const percentage = pago.status === 'Pagado' ? 100 : Math.max(0, Math.min(100, (daysRemaining / 10) * 100)); // Assuming 10 days is full circle for pending
+  const percentage =
+    pago.status === "Pagado"
+      ? 100
+      : daysRemaining <= 0
+        ? 0
+        : Math.min(100, (daysRemaining / 15) * 100); // Assuming 10 days is full circle for pending
 
   return (
     <motion.div
@@ -45,10 +50,26 @@ function PagoCard({ pago, onEdit, onDelete, colorCategory, daysRemaining }) {
     >
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1">
-          <p className="text-sm font-medium text-slate-700">{pago.cliente}</p>
-          <p className="text-xs text-slate-500 mt-1">Vence: {pago.fechaLimite}</p>
+          <p className="text-sm font-semibold text-slate-800">
+            {pago.cliente}
+          </p>
+
+          {pago.proveedor && (
+            <p className="text-xs text-slate-500">
+              {pago.proveedor}
+            </p>
+          )}
+
+          {pago.concepto && (
+            <p className="text-xs text-slate-400 italic">
+              {pago.concepto}
+            </p>
+          )}
+          <p className="text-xs text-slate-500 mt-1">
+            Vence: {pago.fecha_limite}
+          </p>
         </div>
-        
+
         <div className="flex flex-col items-center">
           <svg className="w-12 h-12 transform -rotate-90">
             <circle
@@ -80,8 +101,8 @@ function PagoCard({ pago, onEdit, onDelete, colorCategory, daysRemaining }) {
 
       <div className="space-y-2 mb-3">
         <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-600">Monto:</span>
-          <span className="font-semibold text-slate-800">{pago.divisa} {parseFloat(pago.monto).toLocaleString()}</span>
+          <span className="text-xs text-slate-500">Monto</span>
+          <span className="font-semibold text-slate-800">{pago.divisa} {Number(pago.monto || 0).toLocaleString()}</span>
         </div>
         <div>
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(pago.status)}`}>

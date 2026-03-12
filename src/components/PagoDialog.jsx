@@ -84,10 +84,13 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
       setFormData({
         referencia: initialData.referencia || "",
         cliente: initialData.cliente || "",
+        cliente_id: initialData.cliente_id || "",
         monto: initialData.monto || "",
         divisa: initialData.divisa || "USD",
         status: initialData.status || "Pendiente",
-        fecha_limite: initialData.fecha_limite || ""
+        fecha_limite: initialData.fecha_limite || "",
+        proveedor_id: initialData.proveedor_id || "",
+        concepto: initialData.concepto || ""
       });
 
     } else {
@@ -105,23 +108,29 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
 
   }, [initialData, open]);
 
+
   const handleReferenciaChange = (referencia) => {
+
     const operacion = operaciones.find(op => op.referencia === referencia);
+
     if (operacion) {
+
       setFormData(prev => ({
         ...prev,
         referencia,
         cliente: operacion.cliente,
         cliente_id: operacion.cliente_id
       }));
+
     } else {
+
       setFormData(prev => ({
         ...prev,
-        referencia,
-        cliente: operacion.cliente,
-        cliente_id: operacion.cliente_id
+        referencia
       }));
+
     }
+
   };
 
   const handleSubmit = async (e) => {
@@ -155,13 +164,13 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{initialData ? 'Editar Pago' : 'Nuevo Pago'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="referencia">Referencia de Operación *</Label>
               <select
@@ -234,7 +243,7 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div className="col-span-2">
               <Label htmlFor="concepto">Concepto</Label>
 
               <input

@@ -166,7 +166,7 @@ function PagosSection() {
   };
 
   const filteredPagos = pagos.filter(pago => {
-    const matchesSearch = pago.referencia.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (pago.referencia || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (pago.cliente || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     if (filterType === 'all') return matchesSearch;
@@ -179,18 +179,55 @@ function PagosSection() {
     return matchesSearch && getColorCategory(pago) === filterType;
   });
 
-  const groupedPagos = filteredPagos.reduce((acc, pago) => {
-    const key = pago.referencia;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(pago);
-    return acc;
-  }, {});
+  const getTotales = (pagosList) => {
+
+    const total = pagosList.reduce((sum, p) => sum + Number(p.monto || 0), 0);
+
+    const pagado = pagosList
+      .filter(p => p.status === "Pagado")
+      .reduce((sum, p) => sum + Number(p.monto || 0), 0);
+
+    const pendiente = total - pagado;
+
+    return {
+      total,
+      pagado,
+      pendiente
+    };
+
+  };
+
+  const groupedPagos = React.useMemo(() =>
+    filteredPagos.reduce((acc, pago) => {
+      const key = pago.referencia;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(pago);
+      return acc;
+    }, {}), [filteredPagos]);
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
-          <h2 className="text-xl font-semibold text-slate-800">Gestión de Pagos</h2>
+          const totales = getTotales(pagosList);
+
+          <h3 className="text-lg font-semibold text-slate-800">{referencia}</h3>
+
+          <div className="flex gap-3 mb-4 text-sm">
+
+            <div className="bg-slate-100 px-3 py-1 rounded">
+              Total: ${totales.total.toLocaleString()}
+            </div>
+
+            <div className="bg-green-100 text-green-700 px-3 py-1 rounded">
+              Pagado: ${totales.pagado.toLocaleString()}
+            </div>
+
+            <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded">
+              Pendiente: ${totales.pendiente.toLocaleString()}
+            </div>
+
+          </div>
           <Button
             onClick={() => {
               setEditingPago(null);
@@ -273,7 +310,29 @@ function PagosSection() {
                 exit={{ opacity: 0, y: -10 }}
                 className="border border-slate-200 rounded-lg p-4"
               >
-                <h3 className="text-lg font-semibold text-slate-800 mb-4">{referencia}</h3>
+                <div className="mb-4">
+
+                  <h3 className="text-lg font-semibold text-slate-800">
+                    {referencia}
+                  </h3>
+
+                  <div className="flex gap-3 mt-2 text-sm">
+
+                    <div className="bg-slate-100 px-3 py-1 rounded">
+                      Total: ${totales.total.toLocaleString()}
+                    </div>
+
+                    <div className="bg-green-100 text-green-700 px-3 py-1 rounded">
+                      Pagado: ${totales.pagado.toLocaleString()}
+                    </div>
+
+                    <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded">
+                      Pendiente: ${totales.pendiente.toLocaleString()}
+                    </div>
+
+                  </div>
+
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {pagosList.map(pago => (
                     <div key={pago.id} onClick={() => handleCardClick(pago)} className="cursor-pointer">
@@ -314,10 +373,10 @@ function PagosSection() {
         initialData={editingPago}
       />
 
-      <DetailModal
+      <PagoDetailModal
         open={detailModalOpen}
         onOpenChange={setDetailModalOpen}
-        data={selectedPago}
+        pago={selectedPago}
         title={selectedPago ? `Pago: ${selectedPago.referencia} (${selectedPago.monto} ${selectedPago.divisa})` : 'Detalle de Pago'}
         onDelete={handleDeletePago}
         onEdit={(p) => {
