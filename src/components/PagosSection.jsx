@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Search } from 'lucide-react';
 import PagoDialog from '@/components/PagoDialog';
 import PagoCard from '@/components/PagoCard';
-import DetailModal from '@/components/DetailModal';
+import PagoDetailModal from '@/components/PagoDetailModal';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from "@/lib/customSupabaseClient";
 
