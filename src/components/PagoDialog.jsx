@@ -9,6 +9,9 @@ import { logError } from '@/lib/ErrorLogger';
 function PagoDialog({ open, onOpenChange, onSave, initialData }) {
   const [operaciones, setOperaciones] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+
+  const [referenciaSearch, setReferenciaSearch] = useState('');
+  const [proveedorSearch, setProveedorSearch] = useState('');
   const [formData, setFormData] = useState({
     referencia: '',
     cliente: '',
@@ -80,7 +83,15 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
   useEffect(() => {
 
     if (initialData) {
+      setReferenciaSearch(initialData.referencia || "");
 
+      const proveedor = proveedores.find(
+        p => String(p.id) === String(initialData.proveedor_id)
+      );
+
+      if (proveedor) {
+        setProveedorSearch(proveedor.razon_social);
+      }
       setFormData({
         referencia: initialData.referencia || "",
         cliente: initialData.cliente || "",
@@ -98,15 +109,18 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
       setFormData({
         referencia: "",
         cliente: "",
+        cliente_id: "",
         monto: "",
         divisa: "USD",
         status: "Pendiente",
-        fecha_limite: ""
+        fecha_limite: "",
+        proveedor_id: "",
+        concepto: ""
       });
 
     }
 
-  }, [initialData, open]);
+  }, [initialData, open, proveedores]);
 
 
   const handleReferenciaChange = (referencia) => {
@@ -132,6 +146,20 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
     }
 
   };
+
+  const referenciasFiltradas =
+    referenciaSearch && !formData.referencia
+      ? operaciones.filter(op =>
+        op.referencia.toLowerCase().includes(referenciaSearch.toLowerCase())
+      )
+      : [];
+
+  const proveedoresFiltrados =
+    proveedorSearch.length === 0
+      ? []
+      : proveedores.filter(p =>
+        p.razon_social.toLowerCase().includes(proveedorSearch.toLowerCase())
+      );
 
   const handleSubmit = async (e) => {
 
@@ -173,18 +201,35 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="referencia">Referencia de Operación *</Label>
-              <select
-                id="referencia"
-                required
-                value={formData.referencia}
-                onChange={(e) => handleReferenciaChange(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1 text-slate-800"
-              >
-                <option value="">Seleccionar referencia</option>
-                {operaciones.map(op => (
-                  <option key={op.id} value={op.referencia}>{op.referencia}</option>
+              <input
+                type="text"
+                placeholder="Buscar referencia..."
+                value={referenciaSearch}
+                onChange={(e) => setReferenciaSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg mt-1"
+              />
+
+              <div className="border rounded-lg max-h-32 overflow-y-auto mt-1">
+
+                {referenciasFiltradas.map(op => (
+
+                  <div
+                    key={op.id}
+                    onClick={() => {
+
+                      handleReferenciaChange(op.referencia);
+                      setReferenciaSearch(op.referencia);
+
+                    }}
+                    className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm"
+                  >
+                    {op.referencia}
+                  </div>
+
                 ))}
-              </select>
+
+              </div>
+
             </div>
 
             <div>
@@ -203,26 +248,38 @@ function PagoDialog({ open, onOpenChange, onSave, initialData }) {
             <div>
               <Label htmlFor="proveedor">Proveedor</Label>
 
-              <select
-                id="proveedor"
-                value={formData.proveedor_id}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    proveedor_id: e.target.value
-                  })
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1 text-slate-800"
-              >
-                <option value="">Seleccionar proveedor</option>
+              <input
+                type="text"
+                placeholder="Buscar proveedor..."
+                value={proveedorSearch}
+                onChange={(e) => setProveedorSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg mt-1"
+              />
 
-                {proveedores.map(p => (
-                  <option key={p.id} value={p.id}>
+              <div className="border rounded-lg max-h-32 overflow-y-auto mt-1">
+
+                {proveedoresFiltrados.map(p => (
+
+                  <div
+                    key={p.id}
+                    onClick={() => {
+
+                      setFormData({
+                        ...formData,
+                        proveedor_id: p.id
+                      });
+
+                      setProveedorSearch(p.razon_social);
+
+                    }}
+                    className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm"
+                  >
                     {p.razon_social}
-                  </option>
+                  </div>
+
                 ))}
 
-              </select>
+              </div>
             </div>
 
             <div>
