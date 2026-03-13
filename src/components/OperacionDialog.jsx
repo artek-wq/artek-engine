@@ -21,10 +21,11 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
   const isEditMode = !!operacion;
 
   const [clientes, setClientes] = useState([]);
+  const [clienteSearch, setClienteSearch] = useState('');
   const [proveedores, setProveedores] = useState([]);
+  const [proveedorSearch, setProveedorSearch] = useState('');
   const [selectedProveedores, setSelectedProveedores] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [documentos, setDocumentos] = useState([]);
 
   const [formData, setFormData] = useState({
     tipo_operacion: '',
@@ -46,6 +47,7 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
     bultos: '',
     cbm: '',
+    peso: '',
     aseguradora: '',
 
     notas: ''
@@ -62,36 +64,14 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
     }
   }, [open]);
 
-  const loadDocumentos = async (operacionId) => {
-
-    const { data, error } = await supabase
-      .from('documentos')
-      .select('*')
-      .eq('operacion_id', operacionId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast({
-        title: "Error cargando documentos",
-        description: error.message,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setDocumentos(data || []);
-  };
-
   useEffect(() => {
 
     if (isEditMode && open) {
       loadOperacionData();
-      loadDocumentos(operacion.id);
     }
 
     if (!isEditMode && open) {
       resetForm();
-      setDocumentos([]);
     }
 
   }, [operacion, open]);
@@ -105,6 +85,13 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
     setClientes(data || []);
   };
 
+  const clientesFiltrados =
+    clienteSearch && !formData.cliente_id
+      ? clientes.filter(c =>
+        c.nombre.toLowerCase().includes(clienteSearch.toLowerCase())
+      )
+      : [];
+
   const fetchProveedores = async () => {
     const { data } = await supabase
       .from('proveedores')
@@ -113,6 +100,10 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
     setProveedores(data || []);
   };
+
+  const proveedoresFiltrados = proveedores.filter(p =>
+    p.razon_social.toLowerCase().includes(proveedorSearch.toLowerCase())
+  );
 
   const loadOperacionData = async () => {
 
@@ -136,11 +127,15 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
       bultos: operacion.bultos || '',
       cbm: operacion.cbm || '',
+      peso: operacion.peso || '',
       aseguradora: operacion.aseguradora || '',
+      equipo: operacion.equipo || '',
 
       notas: operacion.notas || ''
     });
 
+    const cliente = clientes.find(c => String(c.id) === String(operacion.cliente_id));
+    if (cliente) setClienteSearch(cliente.nombre);
 
     // 🔥 Cargar proveedores vinculados
     const { data: relaciones } = await supabase
@@ -172,7 +167,9 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
       bultos: '',
       cbm: '',
+      peso: '',
       aseguradora: '',
+      equipo: '',
 
       notas: ''
     });
@@ -304,28 +301,6 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
           <div className="flex justify-between items-start">
 
-            <div className="flex gap-2">
-
-              <Button
-                variant="outline"
-                onClick={() => {
-
-                  window.dispatchEvent(
-                    new CustomEvent(
-                      'openFileManagerOperacion',
-                      {
-                        detail: operacion
-                      }
-                    )
-                  );
-
-                }}
-              >
-                📂 Archivos
-              </Button>
-
-            </div>
-
             <div>
               <DialogTitle className="text-2xl font-bold tracking-tight">
                 {isEditMode
@@ -374,21 +349,34 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
               <div>
                 <Label>Cliente *</Label>
-                <select
-                  required
-                  value={formData.cliente_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, cliente_id: e.target.value })
-                  }
+
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={clienteSearch}
+                  onChange={(e) => setClienteSearch(e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg mt-1"
-                >
-                  <option value="">Seleccionar cliente</option>
-                  {clientes.map(c => (
-                    <option key={c.id} value={c.id}>
+                />
+
+                <div className="border rounded-lg max-h-32 overflow-y-auto mt-1">
+
+                  {clientesFiltrados.map(c => (
+
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        setFormData({ ...formData, cliente_id: c.id });
+                        setClienteSearch(c.nombre);
+                      }}
+                      className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm"
+                    >
                       {c.nombre}
-                    </option>
+                    </div>
+
                   ))}
-                </select>
+
+                </div>
+
               </div>
 
               {/* FILA 2 */}
@@ -539,6 +527,24 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
               {/* FILA 6 */}
               <div>
+                <Label htmlFor="peso">Peso</Label>
+
+                <input
+                  id="peso"
+                  type="text"
+                  value={formData.peso}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      peso: e.target.value
+                    })
+                  }
+                  placeholder="Ej: 1200 kg / 2.5 tons"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
                 <Label>Incoterms</Label>
                 <input
                   value={formData.incoterms}
@@ -577,6 +583,14 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
                   Proveedores
                 </Label>
 
+                <input
+                  type="text"
+                  placeholder="Buscar proveedor..."
+                  value={proveedorSearch}
+                  onChange={(e) => setProveedorSearch(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg mb-2"
+                />
+
                 <div className="border border-slate-200 rounded-lg p-3 mt-1 max-h-40 overflow-y-auto space-y-2 bg-white">
 
                   {proveedores.length === 0 && (
@@ -585,7 +599,7 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
                     </div>
                   )}
 
-                  {proveedores.map(p => (
+                  {proveedoresFiltrados.map(p => (
 
                     <label
                       key={p.id}
@@ -615,79 +629,6 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
                   ))}
 
                 </div>
-              </div>
-
-              {/* DOCUMENTOS */}
-              <div className="md:col-span-3">
-
-                <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                  Documentos
-                </Label>
-
-                <div className="border rounded-lg mt-2 divide-y">
-
-                  {documentos.length === 0 && (
-                    <div className="p-4 text-sm text-slate-400">
-                      No hay documentos cargados
-                    </div>
-                  )}
-
-                  {documentos.map(doc => (
-
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between px-4 py-2"
-                    >
-
-                      <div className="text-sm text-slate-700">
-                        {doc.nombre}
-                      </div>
-
-                      <div className="flex gap-2">
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-
-                            const url =
-                              supabase.storage
-                                .from(BUCKET_NAME)
-                                .getPublicUrl(doc.archivo_path)
-                                .data.publicUrl;
-
-                            window.open(url, "_blank");
-
-                          }}
-                        >
-                          Ver
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-
-                            await supabase
-                              .from('documentos')
-                              .delete()
-                              .eq('id', doc.id);
-
-                            loadDocumentos(operacion.id);
-
-                          }}
-                        >
-                          Eliminar
-                        </Button>
-
-                      </div>
-
-                    </div>
-
-                  ))}
-
-                </div>
-
               </div>
 
               {/* NOTAS FULL WIDTH */}
