@@ -22,6 +22,7 @@ function FileManager() {
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [subfolder, setSubfolder] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
 
   // ============================
@@ -156,7 +157,9 @@ function FileManager() {
 
   const loadFiles = async (entity) => {
 
-    const folderPath = `${category}/${entity.id}`;
+    const folderPath = subfolder
+      ? `${category}/${entity.id}/${subfolder}`
+      : `${category}/${entity.id}`;
 
     const { data, error } = await listFiles(BUCKET_NAME, folderPath);
 
@@ -196,6 +199,7 @@ function FileManager() {
   const goBackToEntities = () => {
     setLevel('entities');
     setSelectedEntity(null);
+    setSubfolder(null);
     setFiles([]);
   };
 
@@ -309,12 +313,43 @@ function FileManager() {
 
       {/* FILES */}
       {level === 'files' && (
-        <FileList
-          files={files}
-          onDownload={handleDownload}
-          onDelete={handleDelete}
-          onPreview={handlePreview}
-        />
+        <div className="space-y-4">
+
+          {category === 'operaciones' && !subfolder && (
+            <div className="flex gap-3 mb-4">
+
+              <Button onClick={() => {
+                setSubfolder('general');
+                loadFiles(selectedEntity);
+              }}>
+                General
+              </Button>
+
+              <Button onClick={() => {
+                setSubfolder('facturacion_cobranza');
+                loadFiles(selectedEntity);
+              }}>
+                Facturación
+              </Button>
+
+              <Button onClick={() => {
+                setSubfolder('pagos_proveedores');
+                loadFiles(selectedEntity);
+              }}>
+                Pagos Proveedores
+              </Button>
+
+            </div>
+          )}
+
+          <FileList
+            files={files}
+            onDownload={handleDownload}
+            onDelete={handleDelete}
+            onPreview={handlePreview}
+          />
+
+        </div>
       )}
 
       <FileUploadDialog
