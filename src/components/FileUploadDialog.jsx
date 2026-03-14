@@ -85,13 +85,13 @@ function FileUploadDialog({ open, onOpenChange, currentFolder, onUploadComplete 
           operacionId = currentFolder.split('/')[1];
         }
 
-        await supabase.from('documentos').insert({
-          nombre: file.name,
-          tipo: file.type,
-          archivo_path: filePath,
-          cliente_id: clienteId,
-          operacion_id: operacionId,
-          created_by: user?.id || null
+        await supabase.rpc('registrar_documento', {
+          p_nombre: file.name,
+          p_path: filePath,
+          p_entidad_tipo: currentFolder.split('/')[0].slice(0, -1),
+          p_entidad_id: currentFolder.split('/')[1],
+          p_carpeta: currentFolder.split('/')[2] || 'general',
+          p_user: user?.id || null
         });
 
         progress[i] = { status: 'success', name: file.name };
