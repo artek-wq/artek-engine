@@ -155,7 +155,7 @@ const DetailModal = ({
 
         const { data } = await supabase.storage
             .from(BUCKET)
-            .list(`operaciones/${operacionId}`, {
+            .list(`operaciones/${operacionId}/general`, {
                 limit: 100,
                 sortBy: { column: 'created_at', order: 'desc' }
             });
@@ -253,7 +253,7 @@ const DetailModal = ({
 
     const uploadFileWithProgress = async (file) => {
         const cleanName = sanitizeFileName(file.name);
-        const path = `operaciones/${operacion.id}/${cleanName}`;
+        const path = `operaciones/${operacion.id}/general/${cleanName}`;
 
         const { data, error } = await supabase.storage
             .from(BUCKET)
@@ -286,6 +286,7 @@ const DetailModal = ({
     };
 
     const handleUpload = async (file) => {
+
         if (!file || !operacion) return;
 
         setUploading(true);
@@ -293,10 +294,44 @@ const DetailModal = ({
         setErrorMsg(null);
 
         try {
+
             await uploadFileWithProgress(file);
+
+            const cleanName = sanitizeFileName(file.name);
+
+            const filePath = `operaciones/${operacion.id}/general/${cleanName}`;
+
+            // 🔹 registrar metadata documental
+            const { data: { user } } = await supabase.auth.getUser();
+
+            await supabase.from("documentos").insert({
+
+                nombre: cleanName,
+
+                archivo_path: filePath,
+
+                entidad_tipo: "operacion",
+
+                entidad_id: operacion.id,
+
+                carpeta: "general",
+
+                bucket: BUCKET,
+
+                mime_type: file.type,
+
+                size: file.size,
+
+                created_by: user?.id || null
+
+            });
+
             fetchDocumentos(operacion.id);
+
         } catch (err) {
+
             setErrorMsg(err.toString());
+
         }
 
         setUploading(false);

@@ -7,6 +7,7 @@ import FilePreviewModal from '@/components/FilePreviewModal';
 import { listFiles, downloadFile, deleteFile, BUCKET_NAME } from '@/lib/fileUtils';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
+import { searchDocuments } from '@/lib/documentSearch';
 
 function FileManager() {
 
@@ -24,6 +25,10 @@ function FileManager() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [subfolder, setSubfolder] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [folders, setFolders] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchMode, setSearchMode] = useState(false);
 
   // ============================
   // OBTENER USUARIO Y ROL
@@ -179,9 +184,52 @@ function FileManager() {
         folder: folderPath
       }));
 
+    if (!subfolder) {
+      loadFolders(entity);
+    }
+
     setFiles(filtered);
     setSelectedEntity(entity);
     setLevel('files');
+  };
+
+  const handleSearch = async (value) => {
+
+    setSearchQuery(value);
+
+    if (!value || value.length < 2) {
+      setSearchMode(false);
+      setSearchResults([]);
+      return;
+    }
+
+    const results = await searchDocuments(value);
+
+    const formatted = results.map(doc => ({
+      name: doc.nombre,
+      folder: doc.archivo_path.replace(`/${doc.nombre}`, ''),
+      metadata: { size: doc.size },
+      created_at: doc.created_at
+    }));
+
+    setSearchResults(formatted);
+    setSearchMode(true);
+  };
+
+  const loadFolders = async (entity) => {
+
+    const path = `${category}/${entity.id}`;
+
+    const { data, error } = await listFiles(BUCKET_NAME, path);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const onlyFolders = (data || []).filter(item => !item.name.includes('.'));
+
+    setFolders(onlyFolders);
   };
 
   // ============================
@@ -260,8 +308,23 @@ function FileManager() {
           {selectedEntity && (
             <>
               <ChevronRight className="w-4 h-4" />
-              <span className="font-bold">
+              <span
+                className="cursor-pointer"
+                onClick={() => {
+                  setSubfolder(null);
+                  loadFiles(selectedEntity);
+                }}
+              >
                 {selectedEntity.name}
+              </span>
+            </>
+          )}
+
+          {subfolder && (
+            <>
+              <ChevronRight className="w-4 h-4" />
+              <span className="font-bold">
+                {subfolder.replaceAll('_', ' ')}
               </span>
             </>
           )}
@@ -273,6 +336,16 @@ function FileManager() {
             Subir Archivo
           </Button>
         )}
+      </div>
+
+      <div className="mt-4">
+        <input
+          type="text"
+          placeholder="Buscar documentos..."
+          value={searchQuery}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="w-full border rounded-lg px-3 py-2 text-sm"
+        />
       </div>
 
       {/* ROOT */}
@@ -316,34 +389,31 @@ function FileManager() {
         <div className="space-y-4">
 
           {category === 'operaciones' && !subfolder && (
-            <div className="flex gap-3 mb-4">
 
-              <Button onClick={() => {
-                setSubfolder('general');
-                loadFiles(selectedEntity);
-              }}>
-                General
-              </Button>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
 
-              <Button onClick={() => {
-                setSubfolder('facturacion_cobranza');
-                loadFiles(selectedEntity);
-              }}>
-                Facturación
-              </Button>
+              {folders.map(folder => (
 
-              <Button onClick={() => {
-                setSubfolder('pagos_proveedores');
-                loadFiles(selectedEntity);
-              }}>
-                Pagos Proveedores
-              </Button>
+                <Button
+                  key={folder.name}
+                  variant="outline"
+                  onClick={() => {
+                    setSubfolder(folder.name);
+                    setTimeout(() => loadFiles(selectedEntity), 0);
+                  }}
+                  className="flex items-center gap-2 justify-start"
+                >
+                  📁 {folder.name.replaceAll('_', ' ')}
+                </Button>
+
+              ))}
 
             </div>
+
           )}
 
           <FileList
-            files={files}
+            files={searchMode ? searchResults : files}
             onDownload={handleDownload}
             onDelete={handleDelete}
             onPreview={handlePreview}
@@ -357,7 +427,9 @@ function FileManager() {
         onOpenChange={setUploadDialogOpen}
         currentFolder={
           selectedEntity
-            ? `${category}/${selectedEntity.id}`
+            ? subfolder
+              ? `${category}/${selectedEntity.id}/${subfolder}`
+              : `${category}/${selectedEntity.id}/general`
             : ''
         }
         onUploadComplete={() => loadFiles(selectedEntity)}
