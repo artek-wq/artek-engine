@@ -2,23 +2,44 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, X, FileText, Image as ImageIcon, File, AlertTriangle } from 'lucide-react';
-import { isImage, isPDF, formatFileSize, formatDate, getPublicUrl } from '@/lib/fileUtils';
+import { isImage, isPDF, formatFileSize, formatDate } from '@/lib/fileUtils';
 import { motion } from 'framer-motion';
+import { supabase } from '@/lib/customSupabaseClient';
 
 function FilePreviewModal({ open, onOpenChange, file, bucket, onDownload }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
-    if (file && open) {
+
+    const loadPreview = async () => {
+
+      if (!file || !open) return;
+
       setImageError(false);
+
       if (isImage(file.name)) {
-        const url = getPublicUrl(bucket, `${file.folder}/${file.name}`);
-        setPreviewUrl(url);
+
+        const path = `${file.folder}/${file.name}`;
+
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, 60);
+
+        if (error) {
+          console.error(error);
+          setImageError(true);
+          return;
+        }
+
+        setPreviewUrl(data.signedUrl);
       }
-    }
+    };
+
+    loadPreview();
 
     return () => setPreviewUrl(null);
+
   }, [file, open, bucket]);
 
   if (!file) return null;
