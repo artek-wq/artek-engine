@@ -93,6 +93,7 @@ function FilePreviewModal({ open, onOpenChange, file, bucket, onDownload }) {
           )}
 
           {/* PDF Info */}
+
           {isPDFFile && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
               <FileText className="w-16 h-16 text-red-600 mx-auto mb-3" />
