@@ -145,6 +145,19 @@ export function getPublicUrl(bucket, path) {
   return data.publicUrl;
 }
 
+export async function getSignedUrl(bucket, path) {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 60 * 60); // 1 hora
+
+  if (error) {
+    console.error('Signed URL error:', error);
+    return null;
+  }
+
+  return data.signedUrl;
+}
+
 /**
  * Format file size to human readable format
  */

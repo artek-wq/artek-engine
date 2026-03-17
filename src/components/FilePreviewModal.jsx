@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, X, FileText, Image as ImageIcon, File, AlertTriangle } from 'lucide-react';
-import { isImage, isPDF, formatFileSize, formatDate } from '@/lib/fileUtils';
+import { isImage, isPDF, formatFileSize, formatDate, getSignedUrl } from '@/lib/fileUtils';
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/customSupabaseClient';
 
@@ -20,14 +20,18 @@ function FilePreviewModal({ open, onOpenChange, file, bucket, onDownload }) {
 
       if (isImage(file.name)) {
 
-        const path = `${file.folder}/${file.name}`;
+        const path = file.folder
+          ? `${file.folder}/${file.name}`
+          : file.name;
+
+        console.log('Preview path:', path);
 
         const { data, error } = await supabase.storage
           .from(bucket)
-          .createSignedUrl(path, 60);
+          .createSignedUrl(path, 60 * 60);
 
         if (error) {
-          console.error(error);
+          console.error('SIGNED URL ERROR:', error);
           setImageError(true);
           return;
         }
