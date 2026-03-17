@@ -519,7 +519,7 @@ function FileManager() {
         open={previewModalOpen}
         onOpenChange={setPreviewModalOpen}
         file={selectedFile}
-        bucket={team - files}
+        bucket={BUCKET_NAME}
         onDownload={() => handleDownload(selectedFile)}
       />
 
