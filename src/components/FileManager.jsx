@@ -159,7 +159,7 @@ function FileManager() {
     }
     setSelectedEntity(entity);
     setLevel("files");
-    setActiveTab(subfolder || "general");
+    setActiveTab(subfolder || activeTab || "general");
 
   };
 
@@ -249,9 +249,22 @@ function FileManager() {
 
     for (const file of acceptedFiles) {
 
-      const folder = subfolder || activeTab || "general";
+      const folder = subfolder || activeTab;
+
+      if (!folder) {
+        console.error("❌ Folder no definido");
+        return;
+      }
 
       const path = `${category}/${selectedEntity.id}/${folder}/${file.name}`;
+
+      console.log("UPLOAD PATH:", {
+        category,
+        entity: selectedEntity?.id,
+        subfolder,
+        activeTab,
+        folder
+      });
 
       await supabase.storage
         .from(BUCKET_NAME)
