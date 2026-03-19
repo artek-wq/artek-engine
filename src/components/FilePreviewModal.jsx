@@ -18,13 +18,11 @@ function FilePreviewModal({ open, onOpenChange, file, bucket, onDownload }) {
 
       setImageError(false);
 
-      if (isImage(file.name)) {
+      if (isImage(file.name) || isPDF(file.name)) {
 
         const path = file.fullPath || `${file.folder}/${file.name}`;
 
         console.log('FINAL PATH:', path);
-
-        console.log('Preview path:', path);
 
         const { data, error } = await supabase.storage
           .from(bucket)
@@ -98,12 +96,26 @@ function FilePreviewModal({ open, onOpenChange, file, bucket, onDownload }) {
 
           {/* PDF Info */}
 
-          {isPDFFile && (
+          {/* PDF Preview */}
+
+          {isPDFFile && previewUrl && (
+            <div className="w-full h-[600px] border rounded-xl overflow-hidden">
+              <iframe
+                src={previewUrl}
+                className="w-full h-full"
+                title="PDF Preview"
+              />
+            </div>
+          )}
+
+          {/* PDF fallback */}
+
+          {isPDFFile && !previewUrl && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
               <FileText className="w-16 h-16 text-red-600 mx-auto mb-3" />
               <h3 className="font-bold text-slate-900 mb-2">Documento PDF</h3>
               <p className="text-sm text-slate-600 mb-4">
-                Descarga el archivo para visualizarlo en tu visor de PDF preferido.
+                No se pudo cargar la vista previa. Descárgalo.
               </p>
               <Button onClick={onDownload} className="bg-red-600 hover:bg-red-700">
                 <Download className="w-4 h-4 mr-2" />
