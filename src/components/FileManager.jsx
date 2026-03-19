@@ -137,7 +137,8 @@ function FileManager() {
 
     setFiles(onlyFiles.map((f) => ({
       ...f,
-      folder: folderPath
+      folder: folderPath,
+      fullPath: `${folderPath}/${f.name}`
     })));
 
     setSelectedEntity(entity);
@@ -167,6 +168,7 @@ function FileManager() {
     const formatted = data.map((doc) => ({
       name: doc.nombre,
       folder: doc.archivo_path.replace(`/${doc.nombre}`, ""),
+      fullPath: doc.archivo_path, // 🔥 CLAVE
       metadata: { size: doc.size },
       created_at: doc.created_at
     }));
@@ -184,7 +186,7 @@ function FileManager() {
 
     const { data } = await downloadFile(
       BUCKET_NAME,
-      `${file.folder}/${file.name}`
+      file.fullPath || `${file.folder}/${file.name}`
     );
 
     const url = URL.createObjectURL(data);
@@ -199,7 +201,7 @@ function FileManager() {
 
     await deleteFile(
       BUCKET_NAME,
-      `${file.folder}/${file.name}`
+      file.fullPath || `${file.folder}/${file.name}`
     );
 
     loadFiles(selectedEntity);

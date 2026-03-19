@@ -20,9 +20,9 @@ function FilePreviewModal({ open, onOpenChange, file, bucket, onDownload }) {
 
       if (isImage(file.name)) {
 
-        const path = file.folder
-          ? `${file.folder}/${file.name}`
-          : file.name;
+        const path = file.fullPath || `${file.folder}/${file.name}`;
+
+        console.log('FINAL PATH:', path);
 
         console.log('Preview path:', path);
 
