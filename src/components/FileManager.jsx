@@ -43,6 +43,7 @@ function FileManager() {
 
   const [role, setRole] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [activeTab, setActiveTab] = useState("general");
   const [viewMode, setViewMode] = useState("grid");
 
   // =========================
@@ -136,7 +137,9 @@ function FileManager() {
 
     const { data } = await listFiles(BUCKET_NAME, folderPath);
 
-    const clean = (data || []).filter((item) => item.name !== ".keep");
+    const clean = (data || []).filter(
+      (item) => item.name !== ".keep" && !item.name.endsWith(".keep")
+    );
 
     const onlyFolders = clean.filter((item) => item.id === null);
     const onlyFiles = clean.filter((item) => item.id !== null);
@@ -156,6 +159,7 @@ function FileManager() {
     }
     setSelectedEntity(entity);
     setLevel("files");
+    setActiveTab(subfolder || "general");
 
   };
 
@@ -245,9 +249,9 @@ function FileManager() {
 
     for (const file of acceptedFiles) {
 
-      const path = subfolder
-        ? `${category}/${selectedEntity.id}/${subfolder}/${file.name}`
-        : `${category}/${selectedEntity.id}/general/${file.name}`;
+      const folder = subfolder || activeTab || "general";
+
+      const path = `${category}/${selectedEntity.id}/${folder}/${file.name}`;
 
       await supabase.storage
         .from(BUCKET_NAME)
@@ -425,32 +429,30 @@ function FileManager() {
 
       {/* FOLDERS */}
 
-      {level === "files" && folders.length > 0 && !subfolder && (
+      {level === "files" && (
+        <div className="flex gap-2 mb-4">
 
-        <div className="grid grid-cols-3 gap-4">
-
-          {folders.map((folder) => (
+          {[
+            { key: "general", label: "General" },
+            { key: "facturacion", label: "Facturación" },
+            { key: "pagos_proveedores", label: "Pagos a proveedores" }
+          ].map(tab => (
 
             <Button
-              key={folder.name}
-              variant="outline"
+              key={tab.key}
+              variant={activeTab === tab.key ? "default" : "outline"}
               onClick={() => {
-                setSubfolder(folder.name);
+                setSubfolder(tab.key);
+                setActiveTab(tab.key);
                 setTimeout(() => loadFiles(selectedEntity), 0);
               }}
             >
-              📁 {
-                folder.name === "general" ? "General" :
-                  folder.name === "facturacion" ? "Facturación" :
-                    folder.name === "pagos_proveedores" ? "Pagos a proveedores" :
-                      folder.name
-              }
+              {tab.label}
             </Button>
 
           ))}
 
         </div>
-
       )}
 
       <div
