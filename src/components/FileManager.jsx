@@ -123,6 +123,17 @@ function FileManager() {
       ? `${category}/${entity.id}/${subfolder}`
       : `${category}/${entity.id}`;
 
+    // 🔥 CREAR CARPETAS BASE SI NO EXISTEN
+    const baseFolders = ["general", "facturacion", "pagos_proveedores"];
+
+    for (const folder of baseFolders) {
+      const path = `${category}/${entity.id}/${folder}/.keep`;
+
+      await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(path, new Blob([""]), { upsert: true });
+    }
+
     const { data } = await listFiles(BUCKET_NAME, folderPath);
 
     const clean = (data || []).filter((item) => item.name !== ".keep");
@@ -140,7 +151,9 @@ function FileManager() {
       folder: folderPath,
       fullPath: `${folderPath}/${f.name}`
     })));
-
+    if (!subfolder) {
+      setSubfolder(null);
+    }
     setSelectedEntity(entity);
     setLevel("files");
 
@@ -219,20 +232,11 @@ function FileManager() {
   // CREATE FOLDER
   // =========================
 
-  const createFolder = async () => {
-
-    const name = prompt("Nombre de la carpeta");
-
-    if (!name) return;
-
-    const path = `${category}/${selectedEntity.id}/${name}/.keep`;
-
-    await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(path, new Blob([""]));
-
-    loadFiles(selectedEntity);
-
+  const createFolder = () => {
+    toast({
+      title: "Carpetas controladas",
+      description: "Usa General, Facturación o Pagos.",
+    });
   };
 
   const onDrop = async (acceptedFiles) => {
@@ -435,7 +439,12 @@ function FileManager() {
                 setTimeout(() => loadFiles(selectedEntity), 0);
               }}
             >
-              📁 {folder.name}
+              📁 {
+                folder.name === "general" ? "General" :
+                  folder.name === "facturacion" ? "Facturación" :
+                    folder.name === "pagos_proveedores" ? "Pagos a proveedores" :
+                      folder.name
+              }
             </Button>
 
           ))}
