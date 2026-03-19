@@ -74,6 +74,12 @@ function FileManager() {
 
   }, []);
 
+  useEffect(() => {
+    if (selectedEntity && subfolder) {
+      loadFiles(selectedEntity);
+    }
+  }, [subfolder]);
+
   // =========================
   // LOAD ENTITIES
   // =========================
@@ -120,25 +126,17 @@ function FileManager() {
 
   const loadFiles = async (entity) => {
 
-    const folderPath = subfolder
-      ? `${category}/${entity.id}/${subfolder}`
-      : `${category}/${entity.id}`;
+    const folder = subfolder || activeTab || "general";
+
+    const folderPath = `${category}/${entity.id}/${folder}`;
 
     // 🔥 CREAR CARPETAS BASE SI NO EXISTEN
     const baseFolders = ["general", "facturacion", "pagos_proveedores"];
 
-    for (const folder of baseFolders) {
-      const path = `${category}/${entity.id}/${folder}/.keep`;
-
-      await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(path, new Blob([""]), { upsert: true });
-    }
-
     const { data } = await listFiles(BUCKET_NAME, folderPath);
 
     const clean = (data || []).filter(
-      (item) => item.name !== ".keep" && !item.name.endsWith(".keep")
+      (item) => item.name && item.name !== ".keep"
     );
 
     const onlyFolders = clean.filter((item) => item.id === null);
@@ -154,9 +152,7 @@ function FileManager() {
       folder: folderPath,
       fullPath: `${folderPath}/${f.name}`
     })));
-    if (!subfolder) {
-      setSubfolder(null);
-    }
+
     setSelectedEntity(entity);
     setLevel("files");
     setActiveTab(subfolder || activeTab || "general");
@@ -457,7 +453,6 @@ function FileManager() {
               onClick={() => {
                 setSubfolder(tab.key);
                 setActiveTab(tab.key);
-                setTimeout(() => loadFiles(selectedEntity), 0);
               }}
             >
               {tab.label}
