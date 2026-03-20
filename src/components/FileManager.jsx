@@ -360,54 +360,128 @@ function FileManager() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="space-y-6"></div>
+      <div className="space-y-6">
 
-      {/* BREADCRUMB */}
+        {/* BREADCRUMB */}
 
-      <div className="bg-white border rounded-xl p-4 flex justify-between">
+        <div className="bg-white border rounded-xl p-4 flex justify-between">
 
-        <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm">
 
-          <button onClick={goRoot}>
-            <Home className="w-4 h-4" />
-          </button>
+            <button onClick={goRoot}>
+              <Home className="w-4 h-4" />
+            </button>
 
-          {category && (
-            <>
-              <ChevronRight className="w-4 h-4" />
-              {category}
-            </>
-          )}
+            {category && (
+              <>
+                <ChevronRight className="w-4 h-4" />
+                {category}
+              </>
+            )}
 
-          {selectedEntity && (
-            <>
-              <ChevronRight className="w-4 h-4" />
-              {selectedEntity.name}
-            </>
-          )}
+            {selectedEntity && (
+              <>
+                <ChevronRight className="w-4 h-4" />
+                {selectedEntity.name}
+              </>
+            )}
 
-          {subfolder && (
-            <>
-              <ChevronRight className="w-4 h-4" />
-              {subfolder}
-            </>
+            {subfolder && (
+              <>
+                <ChevronRight className="w-4 h-4" />
+                {subfolder}
+              </>
+            )}
+
+          </div>
+
+          {level === "files" && (
+
+            <div className="flex gap-2">
+
+              <Button onClick={() => setUploadDialogOpen(true)}>
+                <Upload className="w-4 h-4 mr-2" />
+                Subir
+              </Button>
+
+              <Button variant="outline" onClick={createFolder}>
+                <FolderPlus className="w-4 h-4 mr-2" />
+                Carpeta
+              </Button>
+
+            </div>
+
           )}
 
         </div>
 
-        {level === "files" && (
+        {/* SEARCH */}
 
-          <div className="flex gap-2">
+        <div className="flex justify-between items-center">
 
-            <Button onClick={() => setUploadDialogOpen(true)}>
-              <Upload className="w-4 h-4 mr-2" />
-              Subir
+          <input
+            placeholder="Buscar documentos..."
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2"
+          />
+
+          <div className="flex gap-2 ml-4">
+
+            <Button
+              size="icon"
+              variant={viewMode === "grid" ? "default" : "outline"}
+              onClick={() => setViewMode("grid")}
+            >
+              <Grid className="w-4 h-4" />
             </Button>
 
-            <Button variant="outline" onClick={createFolder}>
-              <FolderPlus className="w-4 h-4 mr-2" />
-              Carpeta
+            <Button
+              size="icon"
+              variant={viewMode === "list" ? "default" : "outline"}
+              onClick={() => setViewMode("list")}
+            >
+              <List className="w-4 h-4" />
             </Button>
+
+          </div>
+
+        </div>
+
+        {/* ROOT */}
+
+        {level === "root" && (
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+
+            {[
+              { name: "Operaciones", icon: "📦", key: "operaciones" },
+              { name: "Clientes", icon: "👤", key: "clientes" },
+              { name: "Proveedores", icon: "🏢", key: "proveedores" },
+            ].map((item) => (
+
+              <div
+                key={item.key}
+                onClick={() => loadEntities(item.key)}
+                className="p-6 bg-white border rounded-2xl cursor-pointer
+                   hover:shadow-md transition group"
+              >
+
+                <div className="text-3xl mb-4">
+                  {item.icon}
+                </div>
+
+                <div className="text-base font-semibold">
+                  {item.name}
+                </div>
+
+                <p className="text-xs text-gray-400 mt-1">
+                  Carpeta del sistema
+                </p>
+
+              </div>
+
+            ))}
 
           </div>
 
@@ -415,111 +489,34 @@ function FileManager() {
 
       </div>
 
-      {/* SEARCH */}
-
-      <div className="flex justify-between items-center">
-
-        <input
-          placeholder="Buscar documentos..."
-          value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="w-full border rounded-lg px-3 py-2"
-        />
-
-        <div className="flex gap-2 ml-4">
-
-          <Button
-            size="icon"
-            variant={viewMode === "grid" ? "default" : "outline"}
-            onClick={() => setViewMode("grid")}
-          >
-            <Grid className="w-4 h-4" />
-          </Button>
-
-          <Button
-            size="icon"
-            variant={viewMode === "list" ? "default" : "outline"}
-            onClick={() => setViewMode("list")}
-          >
-            <List className="w-4 h-4" />
-          </Button>
-
-        </div>
-
-      </div>
-
-      {/* ROOT */}
-
-      {level === "root" && (
-
-        <div className="grid grid-cols-3 gap-6">
-
-          <Button onClick={() => loadEntities("clientes")}>
-            <Users className="mr-2 w-4 h-4" />
-            Clientes
-          </Button>
-
-          <Button onClick={() => loadEntities("proveedores")}>
-            <Truck className="mr-2 w-4 h-4" />
-            Proveedores
-          </Button>
-
-          <Button onClick={() => loadEntities("operaciones")}>
-            <Ship className="mr-2 w-4 h-4" />
-            Operaciones
-          </Button>
-
-        </div>
-      )}
-
-      {/* ENTITIES */}
-
-      {level === "entities" && (
-
-        <div className="grid grid-cols-2 gap-4">
-
-          {entities.map((entity) => (
-
-            <Button
-              key={entity.id}
-              variant="outline"
-              onClick={() => loadFiles(entity)}
-            >
-              {entity.name}
-            </Button>
-
-          ))}
-
-        </div>
-
-      )}
-
       {/* FOLDERS */}
 
-      {level === "files" && (
-        <div className="flex gap-2 mb-4">
+      {
+        level === "files" && (
+          <div className="flex gap-2 mb-4">
 
-          {[
-            { key: "general", label: "General" },
-            { key: "facturacion", label: "Facturación" },
-            { key: "pagos_proveedores", label: "Pagos a proveedores" }
-          ].map(tab => (
+            {[
+              { key: "general", label: "General" },
+              { key: "facturacion", label: "Facturación" },
+              { key: "pagos_proveedores", label: "Pagos a proveedores" }
+            ].map(tab => (
 
-            <Button
-              key={tab.key}
-              variant={activeTab === tab.key ? "default" : "outline"}
-              onClick={() => {
-                setSubfolder(tab.key);
-                setActiveTab(tab.key);
-              }}
-            >
-              {tab.label}
-            </Button>
+              <Button
+                key={tab.key}
+                variant={activeTab === tab.key ? "default" : "outline"}
+                onClick={() => {
+                  setSubfolder(tab.key);
+                  setActiveTab(tab.key);
+                }}
+              >
+                {tab.label}
+              </Button>
 
-          ))}
+            ))}
 
-        </div>
-      )}
+          </div>
+        )
+      }
 
       <div
         {...getRootProps()}
@@ -544,26 +541,22 @@ function FileManager() {
       {/* FILES */}
 
       {viewMode === "list" ? (
-
         <FileList
           files={files}
           onDownload={handleDownload}
           onDelete={handleDelete}
           onPreview={handlePreview}
         />
-
       ) : (
-
         <FileGrid
           items={files}
           onSelect={(item) => {
             setSelectedItem(item);
-            handlePreview(item); // opcional: abre preview al click
+            handlePreview(item);
           }}
           onOpen={() => { }}
           selectedItem={selectedItem}
         />
-
       )}
 
       {/* UPLOAD */}
@@ -594,7 +587,6 @@ function FileManager() {
     </div>
 
   );
-
 }
 
 export default FileManager;
