@@ -19,6 +19,7 @@ import { supabase } from "@/lib/customSupabaseClient";
 import { useToast } from "@/components/ui/use-toast";
 import { Grid, List } from "lucide-react";
 import { useDropzone } from "react-dropzone";
+import FileGrid from "@/components/file-manager/FileGrid";
 
 function FileManager() {
 
@@ -45,6 +46,7 @@ function FileManager() {
   const [userId, setUserId] = useState(null);
   const [activeTab, setActiveTab] = useState("general");
   const [viewMode, setViewMode] = useState("grid");
+  const [selectedItem, setSelectedItem] = useState(null);
 
   // =========================
   // GET USER ROLE
@@ -239,6 +241,25 @@ function FileManager() {
     });
   };
 
+  const handleAction = async (action, item) => {
+    switch (action) {
+      case "preview":
+        openPreview(item);
+        break;
+
+      case "download":
+        downloadFile(item);
+        break;
+
+      case "delete":
+        await deleteFile(item);
+        break;
+
+      default:
+        break;
+    }
+  };
+
   const onDrop = async (acceptedFiles) => {
 
     if (!selectedEntity) return;
@@ -295,7 +316,51 @@ function FileManager() {
 
   return (
 
-    <div className="space-y-6">
+    <div className="grid grid-cols-[260px_1fr] gap-6">
+
+      {/* SIDEBAR */}
+      <div className="bg-white border rounded-xl p-4 space-y-4">
+
+        <h3 className="text-sm font-semibold text-slate-500">
+          ACCESOS RÁPIDOS
+        </h3>
+
+        <div className="space-y-2">
+
+          <button
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100"
+            onClick={goRoot}
+          >
+            Inicio (Root)
+          </button>
+
+          <button
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100"
+            onClick={() => loadEntities("operaciones")}
+          >
+            Operaciones
+          </button>
+
+          <button
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100"
+            onClick={() => loadEntities("clientes")}
+          >
+            Clientes
+          </button>
+
+          <button
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100"
+            onClick={() => loadEntities("proveedores")}
+          >
+            Proveedores
+          </button>
+
+        </div>
+
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div className="space-y-6"></div>
 
       {/* BREADCRUMB */}
 
@@ -351,13 +416,6 @@ function FileManager() {
       </div>
 
       {/* SEARCH */}
-
-      <input
-        placeholder="Buscar documentos..."
-        value={searchQuery}
-        onChange={(e) => handleSearch(e.target.value)}
-        className="w-full border rounded-lg px-3 py-2"
-      />
 
       <div className="flex justify-between items-center">
 
@@ -496,29 +554,18 @@ function FileManager() {
 
       ) : (
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-          {files.map(file => (
-
-            <div
-              key={file.name}
-              className="border rounded-xl p-4 hover:shadow cursor-pointer"
-              onClick={() => handlePreview(file)}
-            >
-
-              <div className="text-3xl mb-2">📄</div>
-
-              <div className="text-sm font-medium truncate">
-                {file.name}
-              </div>
-
-            </div>
-
-          ))}
-
-        </div>
+        <FileGrid
+          items={files}
+          onSelect={(item) => {
+            setSelectedItem(item);
+            handlePreview(item); // opcional: abre preview al click
+          }}
+          onOpen={() => { }}
+          selectedItem={selectedItem}
+        />
 
       )}
+
       {/* UPLOAD */}
 
       <FileUploadDialog
