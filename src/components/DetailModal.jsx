@@ -16,7 +16,7 @@ import {
     List
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
-import { STATUS, STATUS_STYLES } from '@/constants/status';
+import { STATUS, STATUS_STYLES, STATUS_ESPECIFICO, STATUS_ESPECIFICO_STYLES, getStatusGeneral } from '@/constants/status';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -426,41 +426,44 @@ const DetailModal = ({
                             </div>
                         </div>
 
-                        <select
-                            value={operacion?.status}
-                            onChange={async (e) => {
+                        <div className="flex flex-col items-end gap-2">
+                            {/* Status específico — lo que el usuario elige */}
+                            <select
+                                value={operacion?.status_especifico || ''}
+                                onChange={async (e) => {
+                                    const especifico = e.target.value;
+                                    const general = getStatusGeneral(especifico);
 
-                                const newStatus = e.target.value;
+                                    const { error } = await supabase
+                                        .from('operaciones')
+                                        .update({ status: general, status_especifico: especifico })
+                                        .eq('id', operacion.id)
+                                        .select()
+                                        .single();
 
-                                const { error } = await supabase
-                                    .from('operaciones')
-                                    .update({ status: newStatus })
-                                    .eq('id', operacion.id)
-                                    .select()
-                                    .single();
-
-                                if (!error) {
-
-                                    setOperacion(prev => ({
-                                        ...prev,
-                                        status: newStatus
-                                    }));
-
-                                    // 🔥 Notificar al padre
-                                    onEdit?.({
-                                        ...operacion,
-                                        status: newStatus
-                                    });
-                                }
-                            }}
-                            className={`px-4 py-2 rounded-full text-xs font-semibold border-none outline-none cursor-pointer ${STATUS_STYLES[operacion?.status] || 'bg-slate-100 text-slate-700'}`}
-                        >
-                            {Object.values(STATUS).map(status => (
-                                <option key={status} value={status}>
-                                    {status}
-                                </option>
-                            ))}
-                        </select>
+                                    if (!error) {
+                                        setOperacion(prev => ({
+                                            ...prev,
+                                            status: general,
+                                            status_especifico: especifico
+                                        }));
+                                        onEdit?.({ ...operacion, status: general, status_especifico: especifico });
+                                    }
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold border-none outline-none cursor-pointer ${STATUS_ESPECIFICO_STYLES[operacion?.status_especifico] || 'bg-slate-100 text-slate-700'}`}
+                            >
+                                <option value="">-- Status específico --</option>
+                                {STATUS_ESPECIFICO.map(s => (
+                                    <option key={s.value} value={s.value}>
+                                        {s.label}
+                                    </option>
+                                ))}
+                            </select>
+                            {/* Status general — calculado automáticamente */}
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${STATUS_STYLES[operacion?.status] || 'bg-slate-100 text-slate-600'}`}>
+                                {operacion?.status}
+                            </span>
+                        </div>
 
                     </div>
 

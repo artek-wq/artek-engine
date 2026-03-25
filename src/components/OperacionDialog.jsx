@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/customSupabaseClient';
-import { STATUS } from '@/constants/status';
+import { STATUS, STATUS_ESPECIFICO, getStatusGeneral } from '@/constants/status';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -31,6 +31,7 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
     tipo_operacion: '',
     cliente_id: '',
     status: 'Pendiente',
+    status_especifico: 'Nuevo',
 
     shipper: '',
     incoterms: '',
@@ -111,6 +112,7 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
       tipo_operacion: operacion.tipo_operacion || '',
       cliente_id: operacion.cliente_id || '',
       status: operacion.status || 'Pendiente',
+      status_especifico: operacion.status_especifico || 'Nuevo',
 
       shipper: operacion.shipper || '',
       incoterms: operacion.incoterms || '',
@@ -315,8 +317,15 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
               )}
             </div>
 
-            <div className="px-3 py-1 text-xs rounded-full bg-slate-100 text-slate-600 font-medium">
-              {formData.status}
+            <div className="flex flex-col items-end gap-1">
+              <div className="px-3 py-1 text-xs rounded-full bg-slate-100 text-slate-600 font-medium">
+                {formData.status}
+              </div>
+              {formData.status_especifico && (
+                <div className="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-600">
+                  {formData.status_especifico}
+                </div>
+              )}
             </div>
 
           </div>
@@ -381,20 +390,25 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
               {/* FILA 2 */}
               <div>
-                <Label>Status *</Label>
+                <Label>Status específico *</Label>
                 <select
-                  value={formData.status}
-                  onChange={(e) =>
-                    setFormData({ ...formData, status: e.target.value })
-                  }
+                  value={formData.status_especifico}
+                  onChange={(e) => {
+                    const especifico = e.target.value;
+                    const general = getStatusGeneral(especifico);
+                    setFormData({ ...formData, status_especifico: especifico, status: general });
+                  }}
                   className="w-full px-3 py-2 border rounded-lg mt-1"
                 >
-                  {Object.values(STATUS).map(status => (
-                    <option key={status} value={status}>
-                      {status}
+                  {STATUS_ESPECIFICO.map(s => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
                     </option>
                   ))}
                 </select>
+                <p className="text-xs text-slate-400 mt-1">
+                  Status general: <span className="font-medium text-slate-600">{formData.status}</span>
+                </p>
               </div>
 
               <div>

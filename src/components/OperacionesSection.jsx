@@ -13,7 +13,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/lib/customSupabaseClient';
-import { STATUS, STATUS_STYLES } from '@/constants/status';
+import { STATUS, STATUS_STYLES, STATUS_ESPECIFICO_STYLES } from '@/constants/status';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 function OperacionesSection() {
 
@@ -25,6 +35,8 @@ function OperacionesSection() {
   const [expanded, setExpanded] = useState({});
   const [subDialogOpen, setSubDialogOpen] = useState(false);
   const [parentForSub, setParentForSub] = useState(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [operacionToDelete, setOperacionToDelete] = useState(null);
 
   const { toast } = useToast();
 
@@ -119,19 +131,12 @@ function OperacionesSection() {
     }));
   };
 
-  const handleDelete = async (operacion) => {
-
-    if (!confirm(`¿Eliminar ${operacion.referencia}?`)) return;
-
+  const handleDelete = (operacion) => {
     // 🔒 Bloquear eliminación de madre con sub-operaciones activas
     if (!operacion.operacion_madre_id && operacion.children?.length > 0) {
-
       const activeSubs = operacion.children.filter(
-        sub =>
-          sub.status !== STATUS.COMPLETADA &&
-          sub.status !== STATUS.CANCELADA
+        sub => sub.status !== STATUS.COMPLETADA && sub.status !== STATUS.CANCELADA
       );
-
       if (activeSubs.length > 0) {
         toast({
           title: "No se puede eliminar",
@@ -141,11 +146,16 @@ function OperacionesSection() {
         return;
       }
     }
+    setOperacionToDelete(operacion);
+    setDeleteConfirmOpen(true);
+  };
 
+  const handleDeleteConfirmed = async () => {
+    if (!operacionToDelete) return;
     const { error } = await supabase
       .from('operaciones')
       .delete()
-      .eq('id', operacion.id);
+      .eq('id', operacionToDelete.id);
 
     if (error) {
       toast({
@@ -153,10 +163,12 @@ function OperacionesSection() {
         description: error.message,
         variant: "destructive"
       });
-      return;
+    } else {
+      toast({ title: "Operación eliminada", description: operacionToDelete.referencia });
+      fetchOperaciones();
     }
-
-    fetchOperaciones();
+    setOperacionToDelete(null);
+    setDeleteConfirmOpen(false);
   };
 
   const getTypeIcon = (type) => {
@@ -376,21 +388,15 @@ function OperacionesSection() {
 
                   <div className="flex items-center gap-2">
 
-                    <div className="flex items-center gap-2 text-xs font-medium">
-
-                      <span
-                        className={`w-4 h-3 rounded-full ${madre.status === "Completada"
-                          ? "bg-green-500"
-                          : madre.status === "En Proceso"
-                            ? "bg-blue-500"
-                            : madre.status === "Pendiente"
-                              ? "bg-yellow-500"
-                              : "bg-slate-400"
-                          }`}
-                      />
-
-                      <span className="text-slate-600">{madre.status}</span>
-
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[madre.status] || 'bg-slate-100 text-slate-600'}`}>
+                        {madre.status}
+                      </span>
+                      {madre.status_especifico && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_ESPECIFICO_STYLES[madre.status_especifico] || 'bg-slate-50 text-slate-500'}`}>
+                          {madre.status_especifico}
+                        </span>
+                      )}
                     </div>
 
                     <DropdownMenu>
@@ -479,21 +485,15 @@ function OperacionesSection() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs font-medium">
-
-                        <span
-                          className={`w-4 h-3 rounded-full ${sub.status === "Completada"
-                            ? "bg-green-500"
-                            : sub.status === "En Proceso"
-                              ? "bg-blue-500"
-                              : sub.status === "Pendiente"
-                                ? "bg-yellow-500"
-                                : "bg-slate-400"
-                            }`}
-                        />
-
-                        <span className="text-slate-600">{sub.status}</span>
-
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[sub.status] || 'bg-slate-100 text-slate-600'}`}>
+                          {sub.status}
+                        </span>
+                        {sub.status_especifico && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_ESPECIFICO_STYLES[sub.status_especifico] || 'bg-slate-50 text-slate-500'}`}>
+                            {sub.status_especifico}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -574,6 +574,27 @@ function OperacionesSection() {
 
         }}
       />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar operación?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará permanentemente <strong>{operacionToDelete?.referencia}</strong>.
+              No se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirmed}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <DetailModal
         open={detailModalOpen}

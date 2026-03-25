@@ -3,9 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// 👇 AGREGA ESTO TEMPORALMENTE
-console.log("URL:", supabaseUrl)
-console.log("KEY:", supabaseAnonKey)
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('[Supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in environment variables.')
+}
 
 const customSupabaseClient = createClient(supabaseUrl, supabaseAnonKey)
 
