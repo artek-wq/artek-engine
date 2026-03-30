@@ -17,21 +17,16 @@ import {
 } from "@/lib/fileUtils";
 import FileUploadDialog from "@/components/FileUploadDialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// =============================================
-// CONFIG
-// =============================================
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
 
 const ROOT_CATEGORIES = [
   { key: "operaciones", label: "Operaciones", color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-600", icon: Package, table: "operaciones", nameField: "referencia" },
   { key: "ventas", label: "Ventas CRM", color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-600", icon: BarChart2, table: null, nameField: null },
-  { key: "pagos", label: "Pagos", color: "bg-violet-500", light: "bg-violet-50", text: "text-violet-600", icon: DollarSign, table: "pagos", nameField: "concepto" },
+  { key: "pagos", label: "Pagos", color: "bg-violet-500", light: "bg-violet-50", text: "text-violet-600", icon: DollarSign, table: "pagos", nameField: "referencia" }, // FIX: referencia en lugar de concepto (concepto puede ser null)
   { key: "facturacion", label: "Facturación", color: "bg-amber-500", light: "bg-amber-50", text: "text-amber-600", icon: Receipt, table: null, nameField: null },
   { key: "clientes", label: "Clientes", color: "bg-pink-500", light: "bg-pink-50", text: "text-pink-600", icon: Users, table: "clientes", nameField: "nombre" },
   { key: "finanzas", label: "Finanzas", color: "bg-orange-500", light: "bg-orange-50", text: "text-orange-600", icon: BarChart2, table: null, nameField: null },
@@ -44,9 +39,7 @@ const SUBFOLDERS = [
   { key: "pagos_proveedores", label: "Pagos a proveedores" },
 ];
 
-// =============================================
-// HELPERS
-// =============================================
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function getFileExt(name = "") { return name.split(".").pop().toLowerCase(); }
 
@@ -62,9 +55,30 @@ function getFileTypeIcon(name = "") {
   return { Icon: File, color: "text-slate-400", bg: "bg-slate-50" };
 }
 
-// =============================================
-// SUB-COMPONENTS
-// =============================================
+// Busca en el Storage directamente (no depende de tabla documentos)
+async function searchInStorage(query) {
+  if (!query || query.length < 2) return [];
+  const q = query.toLowerCase();
+  const results = [];
+  for (const cat of ROOT_CATEGORIES) {
+    const { data: topLevel } = await supabase.storage.from(BUCKET_NAME).list(cat.key, { limit: 100 });
+    for (const entity of (topLevel || [])) {
+      if (!entity.name) continue;
+      for (const sf of SUBFOLDERS) {
+        const path = `${cat.key}/${entity.name}/${sf.key}`;
+        const { data: files } = await supabase.storage.from(BUCKET_NAME).list(path, { limit: 50 });
+        for (const f of (files || [])) {
+          if (f.id && f.name && f.name !== ".keep" && f.name.toLowerCase().includes(q)) {
+            results.push({ ...f, folder: path, fullPath: `${path}/${f.name}`, _category: cat.label, _entity: entity.name });
+          }
+        }
+      }
+    }
+  }
+  return results;
+}
+
+// ─── SUB-COMPONENTS ───────────────────────────────────────────────────────────
 
 function StorageBar({ usedMB = 0, totalMB = 500 }) {
   const pct = Math.min((usedMB / totalMB) * 100, 100).toFixed(1);
@@ -137,6 +151,10 @@ function FileCardGrid({ file, selected, onClick, onAction }) {
       <p className="text-xs text-slate-400 mt-1">
         {formatFileSize(file.metadata?.size)} · {formatDate(file.created_at)}
       </p>
+      {/* Breadcrumb del resultado de búsqueda */}
+      {file._category && (
+        <p className="text-xs text-blue-500 mt-1 truncate">{file._category} / {file._entity}</p>
+      )}
     </motion.div>
   );
 }
@@ -153,7 +171,9 @@ function FileRowList({ file, selected, onClick, onAction }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
-        <p className="text-xs text-slate-400">{file.folder}</p>
+        <p className="text-xs text-slate-400 truncate">
+          {file._category ? `${file._category} / ${file._entity}` : file.folder}
+        </p>
       </div>
       <div className="hidden md:flex items-center gap-6 text-xs text-slate-400 shrink-0">
         <span>{formatFileSize(file.metadata?.size)}</span>
@@ -174,10 +194,12 @@ function RenameDialog({ file, onConfirm, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4">
-        <h3 className="text-base font-semibold text-slate-900 mb-4">Renombrar archivo</h3>
+        <h3 className="text-base font-semibold text-slate-900 mb-1">Renombrar archivo</h3>
+        <p className="text-xs text-slate-400 mb-4 truncate">Actual: {file?.name}</p>
         <input ref={ref} value={name} onChange={e => setName(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") onConfirm(name); if (e.key === "Escape") onClose(); }}
           className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <p className="text-xs text-slate-400 mt-2">Mantén la extensión del archivo (ej: .pdf, .jpg)</p>
         <div className="flex gap-2 mt-4 justify-end">
           <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
           <Button size="sm" onClick={() => onConfirm(name)}>Guardar</Button>
@@ -209,6 +231,7 @@ function DeleteConfirmDialog({ file, onConfirm, onClose }) {
   );
 }
 
+// FIX 1: Preview 50% más grande — panel de 720px, imagen max-h-[420px], PDF h-[560px]
 function FilePreviewPanel({ file, bucket, onClose, onDownload }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -234,31 +257,36 @@ function FilePreviewPanel({ file, bucket, onClose, onDownload }) {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      {/* FIX: max-w-[720px] en lugar de 480px = 50% más grande */}
       <motion.div initial={{ x: 40 }} animate={{ x: 0 }} exit={{ x: 40 }}
-        className="w-full max-w-[480px] bg-slate-900 text-white flex flex-col overflow-hidden shadow-2xl">
+        className="w-full max-w-[720px] bg-slate-900 text-white flex flex-col overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
           <p className="text-sm font-medium truncate text-white flex-1 mr-4">{file.name}</p>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-700 rounded-lg transition">
             <X className="w-4 h-4" />
           </button>
         </div>
-        {/* Preview */}
+
+        {/* Preview area — FIX: más alto */}
         <div className="flex-1 overflow-auto">
           {loading ? (
-            <div className="h-64 flex items-center justify-center">
+            <div className="h-80 flex items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
             </div>
           ) : isImg && previewUrl ? (
-            <div className="p-4">
-              <img src={previewUrl} alt={file.name} className="w-full rounded-xl object-contain max-h-72" />
+            // FIX: max-h-[420px] en lugar de max-h-72
+            <div className="p-6">
+              <img src={previewUrl} alt={file.name}
+                className="w-full rounded-xl object-contain max-h-[420px]" />
             </div>
           ) : isPdf && previewUrl ? (
-            <iframe src={previewUrl} className="w-full h-80" title="PDF" />
+            // FIX: h-[560px] en lugar de h-80
+            <iframe src={previewUrl} className="w-full h-[560px]" title="PDF" />
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 gap-4 text-slate-400">
-              <div className={`w-20 h-20 ${bg} rounded-2xl flex items-center justify-center`}>
-                <Icon className={`w-10 h-10 ${color}`} />
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-slate-400">
+              <div className={`w-24 h-24 ${bg} rounded-2xl flex items-center justify-center`}>
+                <Icon className={`w-12 h-12 ${color}`} />
               </div>
               <p className="text-sm text-center px-8 text-slate-400">
                 Archivo sin vista previa.<br />Este tipo de archivo no soporta previsualización en el navegador.
@@ -270,10 +298,11 @@ function FilePreviewPanel({ file, bucket, onClose, onDownload }) {
             </div>
           )}
         </div>
+
         {/* Details */}
-        <div className="border-t border-slate-700 p-5 space-y-4">
+        <div className="border-t border-slate-700 px-6 py-5 space-y-4">
           <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Detalles del archivo</h4>
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-2.5">
             {[
               { label: "Nombre", value: file.name },
               { label: "Tamaño", value: formatFileSize(file.metadata?.size) },
@@ -281,25 +310,20 @@ function FilePreviewPanel({ file, bucket, onClose, onDownload }) {
               { label: "Fecha", value: formatDate(file.created_at) || "—" },
               { label: "Ubicación", value: `/${(file.folder || "").split("/").slice(-2).join("/")}` },
             ].map(({ label, value }) => (
-              <div key={label} className="flex justify-between text-sm">
-                <span className="text-slate-400">{label}</span>
-                <span className="text-slate-200 font-medium truncate max-w-[220px] text-right">{value}</span>
+              <div key={label} className="flex flex-col gap-0.5">
+                <span className="text-xs text-slate-500">{label}</span>
+                <span className="text-sm text-slate-200 font-medium truncate">{value}</span>
               </div>
             ))}
           </div>
-          <div className="pt-3 border-t border-slate-700 space-y-1">
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Acciones</h4>
+          <div className="pt-3 border-t border-slate-700 flex gap-2">
             {[
               { label: "Descargar", icon: Download, action: onDownload },
-              {
-                label: "Copiar enlace", icon: Link, action: async () => {
-                  if (previewUrl) await navigator.clipboard.writeText(previewUrl);
-                }
-              },
+              { label: "Copiar enlace", icon: Link, action: async () => { if (previewUrl) await navigator.clipboard.writeText(previewUrl); } },
             ].map(({ label, icon: Ic, action }) => (
               <button key={label} onClick={action}
-                className="flex items-center gap-2 w-full text-sm text-slate-300 hover:text-white hover:bg-slate-700 px-3 py-2 rounded-lg transition">
-                <Ic className="w-4 h-4 text-slate-400" />{label}
+                className="flex items-center gap-2 flex-1 justify-center text-sm text-slate-300 hover:text-white hover:bg-slate-700 px-3 py-2 rounded-lg transition border border-slate-700">
+                <Ic className="w-4 h-4" />{label}
               </button>
             ))}
           </div>
@@ -311,7 +335,7 @@ function FilePreviewPanel({ file, bucket, onClose, onDownload }) {
 
 function EntityList({ entities, category, onSelectEntity }) {
   const [search, setSearch] = useState("");
-  const filtered = entities.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = entities.filter(e => e.name?.toLowerCase().includes(search.toLowerCase()));
   const cat = ROOT_CATEGORIES.find(c => c.key === category);
   return (
     <div className="space-y-4">
@@ -344,9 +368,7 @@ function EntityList({ entities, category, onSelectEntity }) {
   );
 }
 
-// =============================================
-// MAIN COMPONENT
-// =============================================
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 
 export default function FileManager() {
   const { toast } = useToast();
@@ -361,6 +383,7 @@ export default function FileManager() {
   const [loading, setLoading] = useState(false);
 
   const [viewMode, setViewMode] = useState("grid");
+  // FIX 4: searchQuery siempre visible — estado global
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -368,54 +391,57 @@ export default function FileManager() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-
   const [renameFile, setRenameFile] = useState(null);
   const [deleteFile_, setDeleteFile_] = useState(null);
 
   const [storageUsedMB, setStorageUsedMB] = useState(0);
   const [totalFiles, setTotalFiles] = useState(0);
 
-  // Load stats
   const loadStats = useCallback(async () => {
     const { data } = await supabase.from("documentos").select("id, size");
     if (data) {
       setTotalFiles(data.length);
-      const used = data.reduce((acc, d) => acc + (d.size || 0), 0);
-      setStorageUsedMB(used / (1024 * 1024));
+      setStorageUsedMB(data.reduce((a, d) => a + (d.size || 0), 0) / (1024 * 1024));
     }
   }, []);
 
   useEffect(() => { loadStats(); }, []);
 
-  // Category click
+  // ── Category click ─────────────────────────────────────────────
   const handleCategoryClick = useCallback(async (cat) => {
-    setSearchQuery("");
+    setSearchQuery(""); setSearchResults([]);
     if (!cat.table) {
       setCategory(cat.key);
       setSelectedEntity({ id: cat.key, name: cat.label });
       setActiveSubfolder("general");
-      setLevel("files");
-      setFiles([]);
+      setLevel("files"); setFiles([]);
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase.from(cat.table).select(`id, ${cat.nameField}`).order(cat.nameField);
+    const { data, error } = await supabase
+      .from(cat.table)
+      .select(`id, ${cat.nameField}`)
+      .not(cat.nameField, "is", null)   // FIX 3: excluir registros con nameField null
+      .order(cat.nameField);
     setLoading(false);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    setEntities((data || []).map(item => ({ id: item.id, name: item[cat.nameField] })));
+    // FIX 3: filtrar valores vacíos antes de mostrar
+    const formatted = (data || [])
+      .filter(item => item[cat.nameField]?.toString().trim())
+      .map(item => ({ id: item.id, name: item[cat.nameField] }));
+    setEntities(formatted);
     setCategory(cat.key);
     setSelectedEntity(null);
     setFiles([]);
     setLevel("entities");
   }, [toast]);
 
-  // Load files
+  // ── Load files ─────────────────────────────────────────────────
   const loadFiles = useCallback(async (entity, subfolder) => {
     if (!entity) return;
     setLoading(true);
     const folder = subfolder || "general";
-    const catKey = category;
-    const path = `${catKey}/${entity.id}/${folder}`;
+    const path = `${category}/${entity.id}/${folder}`;
     const { data, error } = await listFiles(BUCKET_NAME, path);
     setLoading(false);
     if (error) { toast({ title: "Error cargando archivos", description: error.message, variant: "destructive" }); return; }
@@ -430,67 +456,99 @@ export default function FileManager() {
     if (selectedEntity) loadFiles(selectedEntity, sf);
   }, [selectedEntity, loadFiles]);
 
-  // Global search
+  // FIX 4: búsqueda global real en Storage — no depende de tabla documentos
   useEffect(() => {
-    if (!searchQuery || searchQuery.length < 2) { setSearchResults([]); setIsSearching(false); return; }
+    if (!searchQuery || searchQuery.length < 2) {
+      setSearchResults([]); setIsSearching(false); return;
+    }
     setIsSearching(true);
     const t = setTimeout(async () => {
-      const { data } = await supabase.from("documentos").select("*").ilike("nombre", `%${searchQuery}%`).limit(30);
-      setSearchResults((data || []).map(doc => ({
-        name: doc.nombre, folder: doc.archivo_path?.replace(`/${doc.nombre}`, "") || "",
-        fullPath: doc.archivo_path, metadata: { size: doc.size }, created_at: doc.created_at,
-      })));
+      const results = await searchInStorage(searchQuery);
+      setSearchResults(results);
       setIsSearching(false);
-    }, 350);
+    }, 400);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  // File actions
+  // ── File actions ───────────────────────────────────────────────
   const handleAction = useCallback(async (action, file) => {
     switch (action) {
       case "preview":
         setSelectedFile(file); setPreviewOpen(true); break;
+
       case "download": {
-        const { data, error } = await downloadFile(BUCKET_NAME, file.fullPath || `${file.folder}/${file.name}`);
+        const path = file.fullPath || `${file.folder}/${file.name}`;
+        const { data, error } = await downloadFile(BUCKET_NAME, path);
         if (error) { toast({ title: "Error al descargar", description: error.message, variant: "destructive" }); return; }
         const url = URL.createObjectURL(data);
         const a = document.createElement("a"); a.href = url; a.download = file.name; a.click();
         URL.revokeObjectURL(url); break;
       }
+
       case "copyLink": {
-        const { data } = await supabase.storage.from(BUCKET_NAME).createSignedUrl(
-          file.fullPath || `${file.folder}/${file.name}`, 3600);
-        if (data?.signedUrl) { await navigator.clipboard.writeText(data.signedUrl); toast({ title: "Enlace copiado", description: "Válido por 1 hora." }); }
+        const path = file.fullPath || `${file.folder}/${file.name}`;
+        const { data } = await supabase.storage.from(BUCKET_NAME).createSignedUrl(path, 3600);
+        if (data?.signedUrl) {
+          await navigator.clipboard.writeText(data.signedUrl);
+          toast({ title: "Enlace copiado", description: "Válido por 1 hora." });
+        }
         break;
       }
+
       case "rename": setRenameFile(file); break;
       case "delete": setDeleteFile_(file); break;
     }
   }, [toast]);
 
+  // FIX 2: Rename — construir la ruta exacta desde folder + name para evitar "object not found"
   const handleRenameConfirm = useCallback(async (newName) => {
-    if (!renameFile || !newName || newName === renameFile.name) { setRenameFile(null); return; }
-    const { error } = await supabase.storage.from(BUCKET_NAME).move(
-      renameFile.fullPath || `${renameFile.folder}/${renameFile.name}`,
-      `${renameFile.folder}/${newName}`
-    );
-    if (error) toast({ title: "Error al renombrar", description: error.message, variant: "destructive" });
-    else { toast({ title: "Renombrado", description: newName }); loadFiles(selectedEntity, activeSubfolder); loadStats(); }
+    if (!renameFile || !newName?.trim() || newName === renameFile.name) {
+      setRenameFile(null); return;
+    }
+    // Siempre reconstruir desde folder + name original — no confiar en fullPath de búsquedas
+    const fromPath = renameFile.folder
+      ? `${renameFile.folder}/${renameFile.name}`
+      : renameFile.fullPath;
+    const toPath = renameFile.folder
+      ? `${renameFile.folder}/${newName.trim()}`
+      : renameFile.fullPath?.replace(renameFile.name, newName.trim());
+
+    if (!fromPath || !toPath) {
+      toast({ title: "Error al renombrar", description: "No se pudo determinar la ruta del archivo.", variant: "destructive" });
+      setRenameFile(null); return;
+    }
+
+    const { error } = await supabase.storage.from(BUCKET_NAME).move(fromPath, toPath);
+    if (error) {
+      toast({ title: "Error al renombrar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Archivo renombrado", description: newName });
+      if (level === "files" && selectedEntity) loadFiles(selectedEntity, activeSubfolder);
+      if (searchQuery.length >= 2) {
+        const results = await searchInStorage(searchQuery);
+        setSearchResults(results);
+      }
+      loadStats();
+    }
     setRenameFile(null);
-  }, [renameFile, selectedEntity, activeSubfolder, loadFiles, loadStats, toast]);
+  }, [renameFile, level, selectedEntity, activeSubfolder, searchQuery, loadFiles, loadStats, toast]);
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteFile_) return;
     const path = deleteFile_.fullPath || `${deleteFile_.folder}/${deleteFile_.name}`;
     const { error } = await deleteFile(BUCKET_NAME, path);
     if (error) toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
-    else { toast({ title: "Archivo eliminado" }); loadFiles(selectedEntity, activeSubfolder); loadStats(); }
+    else {
+      toast({ title: "Archivo eliminado" });
+      if (level === "files" && selectedEntity) loadFiles(selectedEntity, activeSubfolder);
+      loadStats();
+    }
     setDeleteFile_(null);
-  }, [deleteFile_, selectedEntity, activeSubfolder, loadFiles, loadStats, toast]);
+  }, [deleteFile_, level, selectedEntity, activeSubfolder, loadFiles, loadStats, toast]);
 
   const goRoot = () => {
     setLevel("root"); setCategory(null); setSelectedEntity(null);
-    setFiles([]); setEntities([]); setSearchQuery("");
+    setFiles([]); setEntities([]); setSearchQuery(""); setSearchResults([]);
   };
   const goEntities = () => {
     if (!category) { goRoot(); return; }
@@ -498,12 +556,11 @@ export default function FileManager() {
   };
 
   const currentCat = ROOT_CATEGORIES.find(c => c.key === category);
-  const displayFiles = searchQuery.length >= 2 ? searchResults : files;
+  const isSearchMode = searchQuery.length >= 2;
+  const displayFiles = isSearchMode ? searchResults : files;
   const currentFolder = selectedEntity ? `${category}/${selectedEntity.id}/${activeSubfolder}` : "";
 
-  // =============================================
-  // RENDER
-  // =============================================
+  // ─── RENDER ──────────────────────────────────────────────────────
   return (
     <div className="flex gap-5 h-[calc(100vh-200px)] min-h-[520px]">
 
@@ -512,10 +569,10 @@ export default function FileManager() {
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-1">Accesos Rápidos</p>
           <div className="space-y-0.5">
-            <SidebarBtn label="Inicio (Root)" icon={Home} active={level === "root"} onClick={goRoot} />
+            <SidebarBtn label="Inicio (Root)" icon={Home} active={level === "root" && !isSearchMode} onClick={goRoot} />
             {ROOT_CATEGORIES.map(cat => (
               <SidebarBtn key={cat.key} label={cat.label} icon={cat.icon} iconColor={cat.text}
-                active={category === cat.key} onClick={() => handleCategoryClick(cat)} />
+                active={category === cat.key && !isSearchMode} onClick={() => handleCategoryClick(cat)} />
             ))}
           </div>
         </div>
@@ -532,25 +589,66 @@ export default function FileManager() {
       {/* MAIN */}
       <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
 
-        {/* Top bar */}
-        <div className="bg-white border border-slate-200 rounded-2xl px-5 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-1.5 text-sm min-w-0 flex-1">
-            <button onClick={goRoot} className="flex items-center gap-1 text-slate-500 hover:text-blue-600 transition shrink-0">
-              <Home className="w-4 h-4" /><span className="hidden sm:inline ml-1">Root</span>
-            </button>
-            {category && (
-              <><ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
-                <button onClick={goEntities} className="text-slate-600 hover:text-blue-600 transition font-medium shrink-0">
-                  {currentCat?.label || category}
-                </button></>
+        {/* FIX 4: Buscador SIEMPRE arriba, primera línea, en todas las vistas */}
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
+            {searchQuery && !isSearching && (
+              <button onClick={() => { setSearchQuery(""); setSearchResults([]); }} className="absolute right-3 top-1/2 -translate-y-1/2">
+                <X className="w-4 h-4 text-slate-400 hover:text-slate-700" />
+              </button>
             )}
-            {selectedEntity && level === "files" && (
-              <><ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
-                <span className="text-slate-800 font-semibold truncate">{selectedEntity.name}</span></>
+            <input
+              placeholder="Búsqueda global — buscar archivos en todo el sistema..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-9 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            />
+          </div>
+          {/* View toggle — siempre visible */}
+          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 shrink-0">
+            <button onClick={() => setViewMode("grid")}
+              className={`p-1.5 rounded-lg transition ${viewMode === "grid" ? "bg-white shadow-sm text-slate-800" : "text-slate-400 hover:text-slate-700"}`}>
+              <Grid className="w-4 h-4" />
+            </button>
+            <button onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-lg transition ${viewMode === "list" ? "bg-white shadow-sm text-slate-800" : "text-slate-400 hover:text-slate-700"}`}>
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Breadcrumb + acciones (debajo del buscador) */}
+        <div className="bg-white border border-slate-200 rounded-2xl px-5 py-2.5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-1.5 text-sm min-w-0 flex-1">
+            {isSearchMode ? (
+              <span className="text-slate-600 font-medium">
+                Resultados de búsqueda
+                <span className="text-slate-400 font-normal ml-2">
+                  {isSearching ? "buscando..." : `${searchResults.length} resultado${searchResults.length !== 1 ? "s" : ""} para "${searchQuery}"`}
+                </span>
+              </span>
+            ) : (
+              <>
+                <button onClick={goRoot} className="flex items-center gap-1 text-slate-500 hover:text-blue-600 transition shrink-0">
+                  <Home className="w-4 h-4" /><span className="hidden sm:inline ml-1">Root</span>
+                </button>
+                {category && (
+                  <><ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+                    <button onClick={goEntities} className="text-slate-600 hover:text-blue-600 transition font-medium shrink-0">
+                      {currentCat?.label || category}
+                    </button></>
+                )}
+                {selectedEntity && level === "files" && (
+                  <><ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+                    <span className="text-slate-800 font-semibold truncate">{selectedEntity.name}</span></>
+                )}
+              </>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {level === "files" && (
+            {level === "files" && !isSearchMode && (
               <>
                 <button onClick={() => loadFiles(selectedEntity, activeSubfolder)}
                   className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition">
@@ -564,39 +662,8 @@ export default function FileManager() {
           </div>
         </div>
 
-        {/* Search + view toggle */}
-        <div className="flex gap-3 items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
-            {searchQuery && !isSearching && (
-              <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="w-4 h-4 text-slate-400 hover:text-slate-700" />
-              </button>
-            )}
-            <input placeholder="Búsqueda global de archivos o carpetas..." value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-9 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
-          </div>
-          {level === "files" && (
-            <div className="flex items-center gap-1.5 text-sm text-slate-500 bg-white border border-slate-200 rounded-xl px-3 py-2 cursor-pointer select-none">
-              <span className="whitespace-nowrap">Todos los tipos</span><ChevronDown className="w-3.5 h-3.5" />
-            </div>
-          )}
-          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shrink-0">
-            <button onClick={() => setViewMode("grid")}
-              className={`p-1.5 rounded-lg transition ${viewMode === "grid" ? "bg-slate-100 text-slate-800" : "text-slate-400 hover:text-slate-700"}`}>
-              <Grid className="w-4 h-4" />
-            </button>
-            <button onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-lg transition ${viewMode === "list" ? "bg-slate-100 text-slate-800" : "text-slate-400 hover:text-slate-700"}`}>
-              <List className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Subfolder tabs */}
-        {level === "files" && !searchQuery && (
+        {/* Subfolder tabs — solo en modo archivos y sin búsqueda activa */}
+        {level === "files" && !isSearchMode && (
           <div className="flex gap-2 flex-wrap">
             {SUBFOLDERS.map(sf => (
               <button key={sf.key} onClick={() => handleSubfolderChange(sf.key)}
@@ -614,7 +681,7 @@ export default function FileManager() {
         <div className="flex-1 overflow-auto pr-1">
 
           {/* ROOT */}
-          {level === "root" && !searchQuery && (
+          {level === "root" && !isSearchMode && (
             <div className="space-y-2">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Carpetas Principales</p>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -635,42 +702,39 @@ export default function FileManager() {
           )}
 
           {/* ENTITIES */}
-          {level === "entities" && (
+          {level === "entities" && !isSearchMode && (
             <EntityList entities={entities} category={category}
               onSelectEntity={entity => { setActiveSubfolder("general"); loadFiles(entity, "general"); }} />
           )}
 
-          {/* FILES or SEARCH RESULTS */}
-          {(level === "files" || searchQuery.length >= 2) && (
+          {/* FILES — modo normal o resultados de búsqueda */}
+          {(level === "files" || isSearchMode) && (
             <>
               {loading ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                 </div>
-              ) : displayFiles.length === 0 ? (
+              ) : displayFiles.length === 0 && !isSearching ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
                   <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center">
                     <File className="w-8 h-8 text-slate-300" />
                   </div>
                   <p className="text-sm font-medium">
-                    {searchQuery ? "Sin resultados para tu búsqueda" : "Esta carpeta está vacía"}
+                    {isSearchMode ? `Sin resultados para "${searchQuery}"` : "Esta carpeta está vacía"}
                   </p>
-                  {!searchQuery && level === "files" && (
+                  {!isSearchMode && level === "files" && (
                     <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                       <Upload className="w-4 h-4 mr-2" />Subir primer archivo
                     </Button>
                   )}
                 </div>
-              ) : (
+              ) : !isSearching && (
                 <>
-                  <p className="text-xs text-slate-400 mb-3">
-                    {searchQuery
-                      ? `${displayFiles.length} resultado${displayFiles.length !== 1 ? "s" : ""} · "${searchQuery}"`
-                      : `${displayFiles.length} archivo${displayFiles.length !== 1 ? "s" : ""} · Archivos de la carpeta`
-                    }
-                  </p>
-                  {!searchQuery && level === "files" && (
-                    <p className="text-sm font-semibold text-slate-700 mb-3">Archivos de la carpeta</p>
+                  {!isSearchMode && level === "files" && (
+                    <p className="text-sm font-semibold text-slate-700 mb-3">
+                      Archivos de la carpeta
+                      <span className="text-xs font-normal text-slate-400 ml-2">{displayFiles.length} archivo{displayFiles.length !== 1 ? "s" : ""}</span>
+                    </p>
                   )}
                   <AnimatePresence mode="popLayout">
                     {viewMode === "grid" ? (
