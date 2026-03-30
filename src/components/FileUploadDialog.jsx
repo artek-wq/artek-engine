@@ -1,241 +1,176 @@
 import React, { useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, X, File, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, X, File, CheckCircle, AlertCircle, ChevronDown } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { uploadFile, BUCKET_NAME, getFriendlyErrorMessage } from '@/lib/fileUtils';
-import { supabase } from '@/lib/customSupabaseClient';
-import { motion, AnimatePresence } from 'framer-motion';
+import { uploadDocument, TIPOS_DOCUMENTO, formatFileSize, sanitizeName } from '@/lib/documentService';
 
-function FileUploadDialog({ open, onOpenChange, currentFolder, onUploadComplete }) {
+/**
+ * FileUploadDialog — usa documentService como único punto de upload.
+ *
+ * Props:
+ *   open, onOpenChange, onUploadComplete
+ *   entidadTipo  — 'operacion' | 'cliente' | 'proveedor' | ...
+ *   entidadId    — UUID
+ *   subfolder    — 'general' | 'facturacion' | 'pagos_proveedores'
+ *
+ * (Compatibilidad) currentFolder: si se pasa en lugar de entidadTipo/entidadId,
+ * se parsea automáticamente como "{tipo}/{id}/{subfolder}".
+ */
+function FileUploadDialog({ open, onOpenChange, onUploadComplete,
+  entidadTipo: propTipo, entidadId: propId, subfolder: propSubfolder,
+  currentFolder }) {
+
+  // Parsear currentFolder si viene en modo legacy
+  let entidadTipo = propTipo, entidadId = propId, subfolder = propSubfolder || 'general';
+  if (!entidadTipo && currentFolder) {
+    const parts = currentFolder.split('/');
+    entidadTipo = parts[0] || 'general';
+    entidadId = parts[1] || '';
+    subfolder = parts[2] || 'general';
+  }
+
+  const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({});
-  const { toast } = useToast();
+  const [progress, setProgress] = useState({});
+  const [tipoManual, setTipoManual] = useState('');
 
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    setIsDragging(true);
+  const handleDragOver = useCallback(e => { e.preventDefault(); setIsDragging(true); }, []);
+  const handleDragLeave = useCallback(e => { e.preventDefault(); setIsDragging(false); }, []);
+  const handleDrop = useCallback(e => {
+    e.preventDefault(); setIsDragging(false);
+    setSelectedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
   }, []);
-
-  const handleDragLeave = useCallback((e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    setSelectedFiles(prev => [...prev, ...files]);
-  }, []);
-
-  const handleFileSelect = (e) => {
-    const files = Array.from(e.target.files);
-    setSelectedFiles(prev => [...prev, ...files]);
-  };
-
-  const removeFile = (index) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
+  const handleSelect = e => setSelectedFiles(prev => [...prev, ...Array.from(e.target.files)]);
+  const removeFile = i => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i));
 
   const handleUpload = async () => {
-    if (selectedFiles.length === 0) {
-      toast({
-        title: "No hay archivos",
-        description: "Selecciona al menos un archivo para subir.",
-        variant: "destructive"
-      });
+    if (!selectedFiles.length) return;
+    if (!entidadId) {
+      toast({ title: 'Error', description: 'No se puede determinar la carpeta destino.', variant: 'destructive' });
       return;
     }
 
     setUploading(true);
-    const progress = {};
+    const prog = {};
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
-      progress[i] = { status: 'uploading', name: file.name };
-      setUploadProgress({ ...progress });
+      prog[i] = 'uploading';
+      setProgress({ ...prog });
 
-      const { data, error } = await uploadFile(BUCKET_NAME, currentFolder, file);
+      const { error } = await uploadDocument({
+        file,
+        entidadTipo,
+        entidadId,
+        subfolder,
+        tipoManual: tipoManual || undefined,
+        onProgress: pct => setProgress(prev => ({ ...prev, [`${i}_pct`]: pct })),
+      });
 
+      prog[i] = error ? 'error' : 'success';
       if (error) {
-        progress[i] = { status: 'error', name: file.name };
-        toast({
-          title: "Error al subir",
-          description: `${file.name}: ${getFriendlyErrorMessage(error)}`,
-          variant: "destructive"
-        });
-      } else {
-
-        // Obtener usuario actual
-        const { data: { user } } = await supabase.auth.getUser();
-
-        const filePath = `${currentFolder}/${file.name}`;
-
-        let clienteId = null;
-        let operacionId = null;
-
-        if (currentFolder?.startsWith('clientes/')) {
-          clienteId = currentFolder.split('/')[1];
-        }
-
-        if (currentFolder?.startsWith('operaciones/')) {
-          operacionId = currentFolder.split('/')[1];
-        }
-
-        await supabase.rpc('registrar_documento', {
-          p_nombre: file.name,
-          p_path: filePath,
-          p_entidad_tipo: currentFolder.split('/')[0].slice(0, -1),
-          p_entidad_id: currentFolder.split('/')[1],
-          p_carpeta: currentFolder.split('/')[2] || 'general',
-          p_user: user?.id || null
-        });
-
-        progress[i] = { status: 'success', name: file.name };
+        toast({ title: `Error: ${file.name}`, description: error.message, variant: 'destructive' });
       }
-
-      setUploadProgress({ ...progress });
+      setProgress({ ...prog });
     }
 
-    const successCount = Object.values(progress).filter(p => p.status === 'success').length;
-
-    toast({
-      title: "Carga completada",
-      description: `${successCount} de ${selectedFiles.length} archivos subidos correctamente.`
-    });
+    const ok = Object.values(prog).filter(v => v === 'success').length;
+    toast({ title: 'Carga completada', description: `${ok} de ${selectedFiles.length} archivos subidos.` });
 
     setUploading(false);
-
     setTimeout(() => {
-      setSelectedFiles([]);
-      setUploadProgress({});
+      setSelectedFiles([]); setProgress({}); setTipoManual('');
       onUploadComplete?.();
       onOpenChange(false);
-    }, 1500);
+    }, 1000);
   };
 
+  const close = () => { if (!uploading) { setSelectedFiles([]); setProgress({}); onOpenChange(false); } };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Subir Archivos - {currentFolder || 'Root'}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Upload className="w-5 h-5 text-blue-600" />
+            Subir archivos
+            {entidadId && (
+              <span className="text-sm font-normal text-slate-500">— {entidadTipo}/{subfolder}</span>
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`
-              border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer
-              ${isDragging
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'
-              }
-            `}
-          >
-            <Upload className={`w-12 h-12 mx-auto mb-3 ${isDragging ? 'text-blue-600' : 'text-slate-400'}`} />
-            <p className="text-slate-700 font-medium mb-1">
-              Arrastra archivos aquí o haz clic para seleccionar
-            </p>
-            <p className="text-sm text-slate-500">Soporta múltiples archivos</p>
-
-            <input
-              type="file"
-              multiple
-              onChange={handleFileSelect}
-              className="hidden"
-              id="file-upload"
-            />
-            <label htmlFor="file-upload">
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4"
-                onClick={() => document.getElementById('file-upload').click()}
-              >
-                Seleccionar Archivos
-              </Button>
-            </label>
+          {/* Zona drag & drop */}
+          <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+            onClick={() => document.getElementById('fu-input').click()}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
+              ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50'}`}>
+            <Upload className={`w-10 h-10 mx-auto mb-3 ${isDragging ? 'text-blue-500' : 'text-slate-300'}`} />
+            <p className="text-sm font-medium text-slate-700">Arrastra archivos aquí o haz clic para seleccionar</p>
+            <p className="text-xs text-slate-400 mt-1">Múltiples archivos · Máx. 50 MB por archivo</p>
+            <input id="fu-input" type="file" multiple onChange={handleSelect} className="hidden" />
           </div>
 
+          {/* Selector de tipo de documento */}
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-slate-600 shrink-0">Tipo de documento:</label>
+            <div className="relative flex-1">
+              <select value={tipoManual} onChange={e => setTipoManual(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white">
+                <option value="">Detectar automáticamente</option>
+                {TIPOS_DOCUMENTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Lista de archivos seleccionados */}
           {selectedFiles.length > 0 && (
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              <h4 className="text-sm font-bold text-slate-700">
-                Archivos Seleccionados ({selectedFiles.length})
-              </h4>
-              <AnimatePresence>
-                {selectedFiles.map((file, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <File className="w-5 h-5 text-slate-400 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-slate-900 truncate">{file.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {(file.size / 1024).toFixed(2)} KB
-                        </p>
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {selectedFiles.length} archivo{selectedFiles.length !== 1 ? 's' : ''} seleccionado{selectedFiles.length !== 1 ? 's' : ''}
+              </p>
+              {selectedFiles.map((file, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <File className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
+                    <p className="text-xs text-slate-400">{formatFileSize(file.size)} → {sanitizeName(file.name)}</p>
+                    {/* Barra de progreso */}
+                    {progress[`${i}_pct`] !== undefined && progress[i] === 'uploading' && (
+                      <div className="mt-1.5 h-1 bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 transition-all" style={{ width: `${progress[`${i}_pct`] || 0}%` }} />
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {uploadProgress[index]?.status === 'uploading' && (
-                        <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                      )}
-                      {uploadProgress[index]?.status === 'success' && (
-                        <CheckCircle className="w-5 h-5 text-emerald-500" />
-                      )}
-                      {uploadProgress[index]?.status === 'error' && (
-                        <AlertCircle className="w-5 h-5 text-red-500" />
-                      )}
-
-                      {!uploading && (
-                        <button
-                          onClick={() => removeFile(index)}
-                          className="p-1 hover:bg-slate-200 rounded transition-colors"
-                        >
-                          <X className="w-4 h-4 text-slate-500" />
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                    )}
+                  </div>
+                  <div className="shrink-0">
+                    {progress[i] === 'uploading' && <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />}
+                    {progress[i] === 'success' && <CheckCircle className="w-4 h-4 text-emerald-500" />}
+                    {progress[i] === 'error' && <AlertCircle className="w-4 h-4 text-red-500" />}
+                    {!progress[i] && !uploading && (
+                      <button onClick={() => removeFile(i)} className="p-1 hover:bg-slate-200 rounded transition">
+                        <X className="w-3.5 h-3.5 text-slate-400" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
-          <div className="flex gap-3 justify-end pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={uploading}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={selectedFiles.length === 0 || uploading}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {uploading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Subiendo...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Subir Archivos
-                </>
-              )}
+          {/* Footer */}
+          <div className="flex gap-3 justify-end pt-2 border-t">
+            <Button variant="outline" onClick={close} disabled={uploading}>Cancelar</Button>
+            <Button onClick={handleUpload} disabled={!selectedFiles.length || uploading}
+              className="bg-blue-600 hover:bg-blue-700 text-white">
+              {uploading
+                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Subiendo...</>
+                : <><Upload className="w-4 h-4 mr-2" />Subir {selectedFiles.length > 1 ? `${selectedFiles.length} archivos` : 'archivo'}</>
+              }
             </Button>
           </div>
         </div>

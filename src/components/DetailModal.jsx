@@ -16,6 +16,7 @@ import {
     List
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
+import { uploadDocument, listDocuments, deleteDocument, downloadDocument, getSignedUrl, formatFileSize as docFmtSize, formatDate as docFmtDate, BUCKET } from '@/lib/documentService';
 import { STATUS, STATUS_STYLES, STATUS_ESPECIFICO, STATUS_ESPECIFICO_STYLES, getStatusGeneral } from '@/constants/status';
 import {
     AlertDialog,
@@ -34,7 +35,7 @@ import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 GlobalWorkerOptions.workerSrc = workerSrc;
 
-const BUCKET = 'team-files';
+// BUCKET imported from documentService
 
 const DetailModal = ({
     open,
@@ -152,15 +153,16 @@ const DetailModal = ({
     };
 
     const fetchDocumentos = async (operacionId) => {
-
-        const { data } = await supabase.storage
-            .from(BUCKET)
-            .list(`operaciones/${operacionId}/general`, {
-                limit: 100,
-                sortBy: { column: 'created_at', order: 'desc' }
-            });
-
-        setDocumentos(data || []);
+        const { data } = await listDocuments({ entidadTipo: 'operacion', entidadId: operacionId });
+        // Normalize to format expected by thumbnail generator
+        setDocumentos((data || []).map(doc => ({
+            ...doc,
+            name: doc.nombre,
+            fullPath: doc.archivo_path,
+            folder: doc.archivo_path?.split('/').slice(0, -1).join('/') || '',
+            metadata: { size: doc.size },
+            _docId: doc.id,
+        })));
     };
 
     const fetchSubOperaciones = async (operacionId) => {
@@ -189,7 +191,7 @@ const DetailModal = ({
             // 🛑 Si ya existe thumbnail, NO volver a generarlo
             if (updatedThumbs[file.name]) continue;
 
-            const filePath = `operaciones/${operacion.id}/${file.name}`;
+            const filePath = file.fullPath || file.archivo_path || `operaciones/${operacion.id}/general/${file.name}`;
 
             // 🔄 Activar loading por archivo
             setLoadingThumbs(prev => ({ ...prev, [file.name]: true }));
@@ -286,67 +288,33 @@ const DetailModal = ({
     };
 
     const handleUpload = async (file) => {
-
         if (!file || !operacion) return;
-
-        setUploading(true);
-        setProgress(0);
-        setErrorMsg(null);
-
+        setUploading(true); setProgress(0); setErrorMsg(null);
         try {
-
-            await uploadFileWithProgress(file);
-
-            const cleanName = sanitizeFileName(file.name);
-
-            const filePath = `operaciones/${operacion.id}/general/${cleanName}`;
-
-            // 🔹 registrar metadata documental
-            const { data: { user } } = await supabase.auth.getUser();
-
-            await supabase.from("documentos").insert({
-
-                nombre: cleanName,
-
-                archivo_path: filePath,
-
-                entidad_tipo: "operacion",
-
-                entidad_id: operacion.id,
-
-                carpeta: "general",
-
-                bucket: BUCKET,
-
-                mime_type: file.type,
-
-                size: file.size,
-
-                created_by: user?.id || null
-
+            const { error } = await uploadDocument({
+                file,
+                entidadTipo: 'operacion',
+                entidadId: operacion.id,
+                subfolder: 'general',
+                onProgress: pct => setProgress(pct),
             });
-
+            if (error) throw new Error(error.message);
             fetchDocumentos(operacion.id);
-
         } catch (err) {
-
-            setErrorMsg(err.toString());
-
+            setErrorMsg(err.message || err.toString());
         }
-
-        setUploading(false);
-        setProgress(0);
+        setUploading(false); setProgress(0);
     };
 
-    const handleDownload = async (fileName) => {
-        const { data } = await supabase.storage
-            .from(BUCKET)
-            .createSignedUrl(
-                `operaciones/${operacion.id}/${fileName}`,
-                60
-            );
-
-        window.open(data.signedUrl, '_blank');
+    const handleDownload = async (fileOrName) => {
+        const path = typeof fileOrName === 'object'
+            ? (fileOrName.archivo_path || fileOrName.fullPath)
+            : `operaciones/${operacion.id}/general/${fileOrName}`;
+        const name = typeof fileOrName === 'object'
+            ? (fileOrName.nombre || fileOrName.name)
+            : fileOrName;
+        const { url } = await getSignedUrl(path, 3600);
+        if (url) window.open(url, '_blank');
     };
 
     const handlePreview = async (fileName) => {
@@ -369,11 +337,11 @@ const DetailModal = ({
 
     };
 
-    const handleDeleteFile = async (fileName) => {
-        await supabase.storage
-            .from(BUCKET)
-            .remove([`operaciones/${operacion.id}/${fileName}`]);
-
+    const handleDeleteFile = async (fileOrName) => {
+        const doc = typeof fileOrName === 'object'
+            ? fileOrName
+            : { archivo_path: `operaciones/${operacion.id}/general/${fileOrName}`, nombre: fileOrName };
+        await deleteDocument(doc);
         fetchDocumentos(operacion.id);
         setPreviewUrl(null);
     };

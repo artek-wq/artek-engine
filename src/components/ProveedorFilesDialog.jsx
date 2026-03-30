@@ -1,128 +1,63 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { FolderOpen, Upload } from 'lucide-react';
-import FileList from '@/components/FileList';
-import FileUploadDialog from '@/components/FileUploadDialog';
-import FilePreviewModal from '@/components/FilePreviewModal';
-import { downloadFile, deleteFile, BUCKET_NAME, getFriendlyErrorMessage } from '@/lib/fileUtils';
+import {
+  FolderOpen, Upload, Download, Trash2, Eye, File, FileText, Image as ImageIcon,
+  Loader2, RefreshCw, X
+} from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  listDocuments, deleteDocument, downloadDocument, getSignedUrl,
+  formatFileSize, formatDate, getTipoLabel, isImage, isPDF, BUCKET
+} from '@/lib/documentService';
 import { supabase } from '@/lib/customSupabaseClient';
+import FileUploadDialog from '@/components/FileUploadDialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 
 function ProveedorFilesDialog({ open, onOpenChange, proveedor }) {
-  const [files, setFiles] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
   const { toast } = useToast();
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [deleteDoc, setDeleteDoc] = useState(null);
 
-  const folderPath = proveedor
-    ? `proveedores/${proveedor.id}`
-    : '';
-
-  useEffect(() => {
-    if (open && proveedor) {
-      loadFiles();
-    }
-  }, [open, proveedor]);
-
-  const loadFiles = async () => {
-    if (!proveedor) return;
-
+  const loadDocs = useCallback(async () => {
+    if (!proveedor?.id) return;
     setLoading(true);
-
-    const { data, error } = await supabase
-      .from('documentos')
-      .select('*')
-      .eq('cliente_id', null) // temporal hasta que agreguemos proveedor_id
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast({
-        title: "Error al cargar archivos",
-        description: error.message,
-        variant: "destructive"
-      });
-      setFiles([]);
-    } else {
-      const formatted = (data || [])
-        .filter(doc => doc.archivo_path.startsWith(`proveedores/${proveedor.id}`))
-        .map(doc => ({
-          id: doc.id,
-          name: doc.nombre,
-          created_at: doc.created_at,
-          folder: doc.archivo_path.split('/').slice(0, -1).join('/'),
-          metadata: {
-            size: 0
-          }
-        }));
-
-      setFiles(formatted);
-    }
-
+    const { data, error } = await listDocuments({ entidadTipo: 'proveedor', entidadId: proveedor.id });
     setLoading(false);
-  };
+    if (error) { toast({ title: 'Error cargando archivos', description: error.message, variant: 'destructive' }); return; }
+    setDocs(data);
+  }, [proveedor?.id, toast]);
 
-  const handleDownload = async (file) => {
-    const filePath = `${file.folder}/${file.name}`;
+  useEffect(() => { if (open && proveedor) loadDocs(); }, [open, proveedor, loadDocs]);
 
-    const { data, error } = await downloadFile(BUCKET_NAME, filePath);
-
-    if (error) {
-      toast({
-        title: "Error al descargar",
-        description: getFriendlyErrorMessage(error),
-        variant: "destructive"
-      });
-      return;
+  const handlePreview = async (doc) => {
+    setPreviewDoc(doc); setPreviewUrl(null); setPreviewLoading(true);
+    if (isImage(doc.nombre) || isPDF(doc.nombre)) {
+      const { url } = await getSignedUrl(doc.archivo_path, 3600);
+      setPreviewUrl(url);
     }
-
-    const url = window.URL.createObjectURL(data);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-
-    toast({
-      title: "Descarga iniciada",
-      description: `${file.name} se está descargando.`
-    });
+    setPreviewLoading(false);
   };
 
-  const handleDelete = async (file) => {
-    const filePath = `${file.folder}/${file.name}`;
-
-    const { error: storageError } = await deleteFile(BUCKET_NAME, filePath);
-
-    if (storageError) {
-      toast({
-        title: "Error al eliminar archivo",
-        description: getFriendlyErrorMessage(storageError),
-        variant: "destructive"
-      });
-      return;
-    }
-
-    await supabase
-      .from('documentos')
-      .delete()
-      .eq('id', file.id);
-
-    toast({
-      title: "Archivo eliminado",
-      description: `${file.name} ha sido eliminado.`
-    });
-
-    loadFiles();
+  const handleDownload = async (doc) => {
+    const { error } = await downloadDocument(doc);
+    if (error) toast({ title: 'Error al descargar', description: error.message, variant: 'destructive' });
   };
 
-  const handlePreview = (file) => {
-    setSelectedFile(file);
-    setPreviewModalOpen(true);
+  const handleDeleteConfirm = async () => {
+    if (!deleteDoc) return;
+    const { error } = await deleteDocument(deleteDoc);
+    if (error) toast({ title: 'Error al eliminar', description: error.message, variant: 'destructive' });
+    else { toast({ title: 'Archivo eliminado' }); loadDocs(); }
+    setDeleteDoc(null);
   };
 
   if (!proveedor) return null;
@@ -132,54 +67,124 @@ function ProveedorFilesDialog({ open, onOpenChange, proveedor }) {
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FolderOpen className="w-5 h-5 text-blue-600" />
-              Archivos: {proveedor.razonSocial}
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <FolderOpen className="w-5 h-5 text-teal-600" />
+                Archivos — {proveedor.razon_social || proveedor.razonSocial}
+              </DialogTitle>
+              <div className="flex gap-2">
+                <button onClick={loadDocs} className="p-1.5 hover:bg-slate-100 rounded-lg transition text-slate-400">
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <Button size="sm" onClick={() => setUploadOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5">
+                  <Upload className="w-4 h-4" /> Subir archivo
+                </Button>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto min-h-[300px] p-1">
-            <div className="flex justify-between items-center mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-              <div className="text-sm text-slate-500">
-                Proveedor ID: <span className="font-mono text-xs bg-slate-200 px-1 py-0.5 rounded text-slate-700">{proveedor.id}</span>
-              </div>
-              <Button size="sm" onClick={() => setUploadDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
-                <Upload className="w-4 h-4 mr-2" />
-                Subir Archivo
-              </Button>
+          <div className="flex flex-1 gap-4 overflow-hidden min-h-0">
+            {/* Lista de documentos */}
+            <div className="flex-1 overflow-y-auto">
+              {loading ? (
+                <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>
+              ) : docs.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <FolderOpen className="w-12 h-12 mx-auto mb-3 text-slate-200" />
+                  <p className="text-sm font-medium">Sin archivos</p>
+                  <p className="text-xs mt-1">Sube el primer documento con el botón de arriba</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {docs.map(doc => (
+                    <div key={doc.id}
+                      onClick={() => handlePreview(doc)}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all group
+                        ${previewDoc?.id === doc.id ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}`}>
+                      <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+                        {isImage(doc.nombre) ? <ImageIcon className="w-4 h-4 text-blue-500" />
+                          : isPDF(doc.nombre) ? <FileText className="w-4 h-4 text-red-500" />
+                            : <File className="w-4 h-4 text-slate-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{doc.nombre}</p>
+                        <p className="text-xs text-slate-400">{getTipoLabel(doc.tipo)} · {formatFileSize(doc.size)} · {formatDate(doc.created_at)}</p>
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition shrink-0" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => handleDownload(doc)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition">
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => setDeleteDoc(doc)} className="p-1.5 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-600 transition">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <FileList
-              files={files}
-              loading={loading}
-              onDownload={handleDownload}
-              onDelete={handleDelete}
-              onPreview={handlePreview}
-            />
+            {/* Panel de preview */}
+            {previewDoc && (
+              <div className="w-72 shrink-0 border-l border-slate-200 pl-4 flex flex-col gap-3 overflow-y-auto">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vista previa</p>
+                  <button onClick={() => { setPreviewDoc(null); setPreviewUrl(null); }} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="bg-slate-50 rounded-xl overflow-hidden flex items-center justify-center min-h-[180px]">
+                  {previewLoading ? <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                    : previewUrl && isImage(previewDoc.nombre) ? <img src={previewUrl} alt={previewDoc.nombre} className="max-w-full max-h-48 object-contain" />
+                      : previewUrl && isPDF(previewDoc.nombre) ? <iframe src={previewUrl} className="w-full h-48 border-none" title="PDF" />
+                        : <div className="text-center p-4"><File className="w-10 h-10 text-slate-300 mx-auto mb-2" /><p className="text-xs text-slate-400">Sin vista previa</p></div>
+                  }
+                </div>
+                <div className="space-y-2 text-xs">
+                  {[
+                    ['Nombre', previewDoc.nombre],
+                    ['Tipo', getTipoLabel(previewDoc.tipo)],
+                    ['Tamaño', formatFileSize(previewDoc.size)],
+                    ['Carpeta', previewDoc.carpeta],
+                    ['Fecha', formatDate(previewDoc.created_at)],
+                  ].map(([l, v]) => (
+                    <div key={l} className="flex justify-between gap-2">
+                      <span className="text-slate-400 shrink-0">{l}</span>
+                      <span className="text-slate-700 font-medium text-right truncate">{v || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+                <Button size="sm" onClick={() => handleDownload(previewDoc)} className="w-full gap-1.5">
+                  <Download className="w-3.5 h-3.5" /> Descargar
+                </Button>
+              </div>
+            )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cerrar
-            </Button>
+          <DialogFooter className="pt-4 border-t">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <FileUploadDialog
-        open={uploadDialogOpen}
-        onOpenChange={setUploadDialogOpen}
-        currentFolder={folderPath}
-        onUploadComplete={loadFiles}
-      />
+      <FileUploadDialog open={uploadOpen} onOpenChange={setUploadOpen}
+        entidadTipo="proveedor" entidadId={proveedor?.id} subfolder="general"
+        onUploadComplete={() => { loadDocs(); setUploadOpen(false); }} />
 
-      <FilePreviewModal
-        open={previewModalOpen}
-        onOpenChange={setPreviewModalOpen}
-        file={selectedFile}
-        bucket={BUCKET_NAME}
-        onDownload={() => selectedFile && handleDownload(selectedFile)}
-      />
+      <AlertDialog open={!!deleteDoc} onOpenChange={v => !v && setDeleteDoc(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar archivo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará permanentemente <strong>{deleteDoc?.nombre}</strong>. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700 text-white">Eliminar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

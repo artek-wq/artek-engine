@@ -10,7 +10,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/customSupabaseClient";
-import { listFiles, downloadFile, deleteFile, BUCKET_NAME, formatFileSize, formatDate } from "@/lib/fileUtils";
+import { listFiles, downloadFile, deleteFile, BUCKET_NAME } from "@/lib/fileUtils";
+import {
+  searchDocuments, deleteDocument, downloadDocument, getSignedUrl as docGetSignedUrl,
+  renameDocument, formatFileSize, formatDate, BUCKET,
+} from "@/lib/documentService";
 import FileUploadDialog from "@/components/FileUploadDialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -71,35 +75,25 @@ function getFileTypeIcon(name = "") {
   return { Icon: File, color: "text-slate-400", bg: "bg-slate-50" };
 }
 
-// FIX: búsqueda paralela con Promise.all — mucho más rápida
-async function searchInStorage(query) {
+// Búsqueda en tabla documentos — rápida, confiable, no hace requests a Storage
+async function searchInDocumentos(query) {
   if (!query || query.length < 2) return [];
-  const q = query.toLowerCase();
-  const allResults = await Promise.all(
-    ROOT_CATEGORIES.filter(c => c.table || !c.nameField === false).map(async cat => {
-      try {
-        const { data: entities } = await supabase.storage.from(BUCKET_NAME).list(cat.key, { limit: 200 });
-        if (!entities?.length) return [];
-        const entityResults = await Promise.all(
-          entities.map(async entity => {
-            if (!entity.name) return [];
-            const sfResults = await Promise.all(
-              SUBFOLDERS.map(async sf => {
-                const path = `${cat.key}/${entity.name}/${sf.key}`;
-                const { data: files } = await supabase.storage.from(BUCKET_NAME).list(path, { limit: 100 });
-                return (files || [])
-                  .filter(f => f.id && f.name && f.name !== ".keep" && f.name.toLowerCase().includes(q))
-                  .map(f => ({ ...f, folder: path, fullPath: `${path}/${f.name}`, _category: cat.label, _entity: entity.name, _sf: sf.label }));
-              })
-            );
-            return sfResults.flat();
-          })
-        );
-        return entityResults.flat();
-      } catch { return []; }
-    })
-  );
-  return allResults.flat();
+  const { data, error } = await searchDocuments(query, { limit: 100 });
+  if (error || !data) return [];
+  // Convertir formato documentos → formato FileManager
+  return data.map(doc => ({
+    id: doc.id,
+    name: doc.nombre,
+    folder: doc.archivo_path?.split("/").slice(0, -1).join("/") || "",
+    fullPath: doc.archivo_path,
+    metadata: { size: doc.size },
+    created_at: doc.created_at,
+    _category: doc.entidad_tipo,
+    _entity: doc.entidad_id,
+    _sf: doc.carpeta,
+    _tipo: doc.tipo,
+    _docId: doc.id,
+  }));
 }
 
 // ─── SUB-COMPONENTS ───────────────────────────────────────────────────────────
@@ -536,7 +530,7 @@ export default function FileManager() {
     }
     setIsSearching(true);
     const t = setTimeout(async () => {
-      const results = await searchInStorage(searchQuery);
+      const results = await searchInDocumentos(searchQuery);
       setSearchResults(results);
       setIsSearching(false);
     }, 400);
@@ -550,12 +544,9 @@ export default function FileManager() {
         setSelectedFile(file); setPreviewOpen(true); break;
 
       case "download": {
-        const path = file.fullPath || `${file.folder}/${file.name}`;
-        const { data, error } = await downloadFile(BUCKET_NAME, path);
-        if (error) { toast({ title: "Error al descargar", description: error.message, variant: "destructive" }); return; }
-        const url = URL.createObjectURL(data);
-        const a = document.createElement("a"); a.href = url; a.download = file.name; a.click();
-        URL.revokeObjectURL(url); break;
+        const { error } = await downloadDocument(file);
+        if (error) { toast({ title: "Error al descargar", description: error.message, variant: "destructive" }); }
+        break;
       }
 
       case "copyLink": {
@@ -579,7 +570,7 @@ export default function FileManager() {
     else {
       toast({ title: "Archivo renombrado", description: newName });
       if (level === "files" && selectedEntity) loadFiles(selectedEntity, activeSubfolder, category);
-      if (searchQuery.length >= 2) { const r = await searchInStorage(searchQuery); setSearchResults(r); }
+      if (searchQuery.length >= 2) { const r = await searchInDocumentos(searchQuery); setSearchResults(r); }
       loadStats();
     }
     setRenameFile(null);
@@ -588,14 +579,20 @@ export default function FileManager() {
   // FIX: handleDeleteConfirm actualiza también searchResults
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteFile_) return;
-    const path = deleteFile_.fullPath || `${deleteFile_.folder}/${deleteFile_.name}`;
-    const { error } = await deleteFile(BUCKET_NAME, path);
+    // deleteDocument handles both Storage + tabla documentos
+    const docObj = {
+      id: deleteFile_._docId || null,
+      archivo_path: deleteFile_.fullPath || `${deleteFile_.folder}/${deleteFile_.name}`,
+      nombre: deleteFile_.name,
+      folder: deleteFile_.folder,
+    };
+    const { error } = await deleteDocument(docObj);
     if (error) toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
     else {
       toast({ title: "Archivo eliminado" });
       if (level === "files" && selectedEntity) loadFiles(selectedEntity, activeSubfolder, category);
-      // FIX: actualizar resultados de búsqueda si está activa
       if (searchQuery.length >= 2) {
+        const path = deleteFile_.fullPath || `${deleteFile_.folder}/${deleteFile_.name}`;
         setSearchResults(prev => prev.filter(f => f.fullPath !== path));
       }
       loadStats();
@@ -609,7 +606,7 @@ export default function FileManager() {
     const cleanName = folderName.replace(/[^a-zA-Z0-9_\-áéíóúüñÁÉÍÓÚÜÑ ]/g, "_").trim();
     const keepPath = `${category}/${selectedEntity.id}/${activeSubfolder}/${cleanName}/.keep`;
     const keepBlob = new Blob([""], { type: "text/plain" });
-    const { error } = await supabase.storage.from(BUCKET_NAME).upload(keepPath, keepBlob, { upsert: false });
+    const { error } = await supabase.storage.from(BUCKET).upload(keepPath, keepBlob, { upsert: false });
     if (error && !error.message.includes("already exists")) {
       toast({ title: "Error al crear carpeta", description: error.message, variant: "destructive" });
     } else {
