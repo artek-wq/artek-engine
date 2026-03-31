@@ -1,3 +1,4 @@
+import DocumentsTab from '@/components/DocumentsTab';
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -164,11 +165,12 @@ function ClienteDetailModal({ open, onOpenChange, cliente, initialTab = "general
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="documentos">
-                            <ClienteFilesDialog
-                                open={true}
-                                cliente={cliente}
-                                embedded={true}
+                        <TabsContent value="documentos" className="pt-4">
+                            <DocumentsTab
+                                entidadTipo="cliente"
+                                entidadId={cliente?.id}
+                                subfolders={[{ key: 'general', label: 'General' }]}
+                                defaultSubfolder="general"
                             />
                         </TabsContent>
                     </Tabs>

@@ -34,6 +34,27 @@ export const TIPOS_DOCUMENTO = [
     { value: 'comprobante_pago', label: 'Comprobante de pago' },
 ];
 
+
+// ─── CREATE ENTITY FOLDERS ───────────────────────────────────────────────────
+/**
+ * Crea las carpetas virtuales (.keep) para una entidad nueva.
+ * Siempre usa UUID como identificador — nunca el nombre.
+ *
+ * @param {'operacion'|'cliente'|'proveedor'} entidadTipo
+ * @param {string} entidadId  — UUID de la entidad
+ * @param {string[]} [subfolders] — subcarpetas a crear (default: ['general'])
+ */
+export async function createEntityFolders(entidadTipo, entidadId, subfolders = ['general']) {
+    const keep = new Blob([''], { type: 'text/plain' });
+    const results = await Promise.allSettled(
+        subfolders.map(async sf => {
+            const path = `${entidadTipo}/${entidadId}/${sf}/.keep`;
+            await supabase.storage.from(BUCKET).upload(path, keep, { upsert: false });
+        })
+    );
+    return results;
+}
+
 // ─── SANITIZACIÓN DE NOMBRE ───────────────────────────────────────────────────
 export function sanitizeName(fileName) {
     const parts = fileName.split('.');

@@ -4,8 +4,8 @@ import {
   Home, ChevronRight, Upload, Search, Grid, List, FolderPlus,
   MoreVertical, Download, Link, Pencil, Trash2, X, Loader2,
   File, FileText, Image as ImageIcon, Film, Music, Archive,
-  RefreshCw, Package, DollarSign, Receipt, Users, BarChart2, Truck,
-  Ship, Plane, CheckCircle2, Clock, AlertCircle, Building2, ZoomIn
+  RefreshCw, Package, Users, BarChart2, Truck,
+  AlertCircle, ZoomIn
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -28,36 +28,34 @@ const ROOT_CATEGORIES = [
     key: "operaciones", label: "Operaciones", color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-600", icon: Package, table: "operaciones", nameField: "referencia",
     extraSelect: "referencia, clientes(nombre), status, tipo_operacion, status_especifico",
     renderSub: op => `${op.clientes?.nombre || "—"} · ${op.status_especifico || op.status || ""}`,
-    renderBadge: op => ({ label: op.tipo_operacion || "M", color: "bg-blue-100 text-blue-700" })
+    renderBadge: op => ({ label: op.tipo_operacion || "M", color: "bg-blue-100 text-blue-700" }),
+    subfolders: [{ key: "general", label: "General" }, { key: "pagos", label: "Pagos" }, { key: "facturacion", label: "Facturación" }]
   },
-  { key: "ventas", label: "Ventas CRM", color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-600", icon: BarChart2, table: null, nameField: null },
   {
-    key: "pagos", label: "Pagos", color: "bg-violet-500", light: "bg-violet-50", text: "text-violet-600", icon: DollarSign, table: "pagos", nameField: "referencia",
-    extraSelect: "referencia, concepto, clientes(nombre), proveedores(razon_social), status, monto, divisa",
-    renderSub: p => `${p.proveedores?.razon_social || p.clientes?.nombre || "—"}${p.concepto ? " · " + p.concepto : ""}`,
-    renderBadge: p => ({ label: `${p.divisa || "USD"} ${Number(p.monto || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`, color: p.status === "Pagado" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700" })
+    key: "ventas", label: "Ventas CRM", color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-600", icon: BarChart2, table: null, nameField: null,
+    subfolders: [{ key: "general", label: "General" }]
   },
-  { key: "facturacion", label: "Facturación", color: "bg-amber-500", light: "bg-amber-50", text: "text-amber-600", icon: Receipt, table: null, nameField: null },
   {
     key: "clientes", label: "Clientes", color: "bg-pink-500", light: "bg-pink-50", text: "text-pink-600", icon: Users, table: "clientes", nameField: "nombre",
     extraSelect: "nombre, rfc, domicilio",
     renderSub: c => `RFC: ${c.rfc || "—"}`,
-    renderBadge: null
+    renderBadge: null,
+    subfolders: [{ key: "general", label: "General" }]
   },
-  { key: "finanzas", label: "Finanzas", color: "bg-orange-500", light: "bg-orange-50", text: "text-orange-600", icon: BarChart2, table: null, nameField: null },
+  {
+    key: "finanzas", label: "Finanzas", color: "bg-orange-500", light: "bg-orange-50", text: "text-orange-600", icon: BarChart2, table: null, nameField: null,
+    subfolders: [{ key: "general", label: "General" }]
+  },
   {
     key: "proveedores", label: "Proveedores", color: "bg-teal-500", light: "bg-teal-50", text: "text-teal-600", icon: Truck, table: "proveedores", nameField: "razon_social",
     extraSelect: "razon_social, rfc",
     renderSub: p => `RFC: ${p.rfc || "—"}`,
-    renderBadge: null
+    renderBadge: null,
+    subfolders: [{ key: "general", label: "General" }]
   },
 ];
 
-const SUBFOLDERS = [
-  { key: "general", label: "General" },
-  { key: "facturacion", label: "Facturación" },
-  { key: "pagos_proveedores", label: "Pagos proveedores" },
-];
+// Subfolders now defined per-category in ROOT_CATEGORIES
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -338,9 +336,19 @@ function FilePreviewModal({ file, bucket, onClose, onDownload }) {
     if (!file) return;
     setLoading(true); setPreviewUrl(null);
     (async () => {
-      const path = file.fullPath || `${file.folder}/${file.name}`;
-      const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
-      setPreviewUrl(data?.signedUrl || null);
+      // Use fullPath directly (already correct from Storage listing)
+      // Fall back to folder+name with proper encoding
+      const path = file.fullPath
+        || `${file.folder}/${file.name}`;
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
+      if (!data?.signedUrl && error) {
+        // Try with decoded path as fallback
+        const decodedPath = decodeURIComponent(path);
+        const { data: data2 } = await supabase.storage.from(bucket).createSignedUrl(decodedPath, 3600);
+        setPreviewUrl(data2?.signedUrl || null);
+      } else {
+        setPreviewUrl(data?.signedUrl || null);
+      }
       setLoading(false);
     })();
   }, [file, bucket]);
@@ -513,7 +521,14 @@ export default function FileManager() {
 
     if (error) { toast({ title: "Error cargando archivos", description: error.message, variant: "destructive" }); return; }
     const clean = (data || []).filter(f => f.name && f.name !== ".keep" && f.id !== null);
-    setFiles(clean.map(f => ({ ...f, folder: path, fullPath: `${path}/${f.name}` })));
+    setFiles(clean.map(f => ({
+      ...f,
+      folder: path,
+      // Encode spaces/special chars in filename to avoid 400 errors on Storage API
+      fullPath: `${path}/${encodeURIComponent(f.name).replace(/%2F/g, '/')}`,
+      // Keep original name for display
+      name: f.name,
+    })));
     setSelectedEntity(entity);
     setLevel("files");
   }, [category, toast]);
@@ -629,8 +644,9 @@ export default function FileManager() {
   const isSearchMode = searchQuery.length >= 2;
   const displayFiles = isSearchMode ? searchResults : files;
   const currentFolder = selectedEntity ? `${category}/${selectedEntity.id}/${activeSubfolder}` : "";
-  // Mostrar subfolder tabs solo si la categoría tiene tabla (tiene entidades reales)
-  const showSubfolderTabs = level === "files" && !isSearchMode && catConfig?.table;
+  // Subfolders del la categoría activa (definidos por categoría)
+  const activeCatSubfolders = catConfig?.subfolders || [{ key: "general", label: "General" }];
+  const showSubfolderTabs = level === "files" && !isSearchMode && catConfig;
 
   // ─── RENDER ──────────────────────────────────────────────────────
   return (
@@ -732,10 +748,10 @@ export default function FileManager() {
           )}
         </div>
 
-        {/* Subfolder tabs — FIX: solo si la categoría tiene tabla real */}
-        {showSubfolderTabs && (
+        {/* Subfolder tabs — per-category, dinámicos */}
+        {showSubfolderTabs && activeCatSubfolders.length > 1 && (
           <div className="flex gap-2 flex-wrap shrink-0">
-            {SUBFOLDERS.map(sf => (
+            {activeCatSubfolders.map(sf => (
               <button key={sf.key} onClick={() => handleSubfolderChange(sf.key)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition
                   ${activeSubfolder === sf.key ? "bg-blue-600 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600"}`}>

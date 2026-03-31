@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/customSupabaseClient';
+import { createEntityFolders } from '@/lib/documentService';
 import { STATUS, STATUS_ESPECIFICO, getStatusGeneral } from '@/constants/status';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -250,6 +251,9 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
           title: 'Operación creada',
           description: `Referencia: ${data.referencia}`
         });
+
+        // Crear carpetas automáticas en Storage: General, Pagos, Facturación
+        createEntityFolders('operacion', result.id, ['general', 'pagos', 'facturacion']);
       }
 
       /* =========================

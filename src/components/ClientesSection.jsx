@@ -14,7 +14,7 @@ import ClienteDialog from '@/components/ClienteDialog';
 import ClienteFilesDialog from '@/components/ClienteFilesDialog';
 import ClienteDetailModal from '@/components/ClienteDetailModal';
 import { useToast } from '@/components/ui/use-toast';
-import { uploadFile, BUCKET_NAME } from '@/lib/fileUtils';
+import { createEntityFolders } from '@/lib/documentService';
 import { usePermissions } from "@/hooks/usePermissions";
 
 function ClientesSection() {
@@ -159,19 +159,11 @@ function ClientesSection() {
       return;
     }
 
-    // 🔹 Crear carpeta automática basada en ID
-    const placeholderFile = new File([""], ".keep", { type: "text/plain" });
+    // Crear carpeta automática usando UUID (no nombre)
     try {
-
-      await uploadFile(
-        BUCKET_NAME,
-        `clientes/${data.id}`,
-        placeholderFile
-      );
-
+      await createEntityFolders('cliente', data.id, ['general']);
     } catch (err) {
-
-      console.error("Error creando carpeta cliente", err);
+      // Folder creation is non-fatal
 
     }
 

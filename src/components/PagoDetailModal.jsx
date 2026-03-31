@@ -1,3 +1,4 @@
+import DocumentsTab from '@/components/DocumentsTab';
 import React, { useEffect, useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -191,100 +192,23 @@ function PagoDetailModal({
 
                     {/* DOCUMENTOS */}
                     <TabsContent value="documentos" className="mt-6">
-
-                        <div className="mb-4">
-
-                            <Button
-                                variant="outline"
-                                onClick={() => fileInputRef.current.click()}
-                            >
-                                <Upload className="w-4 h-4 mr-2" />
-                                Subir documento
-                            </Button>
-
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                className="hidden"
-                                onChange={(e) => uploadFile(e.target.files[0])}
+                        {pago?.operacion_id ? (
+                            <DocumentsTab
+                                entidadTipo="operacion"
+                                entidadId={pago.operacion_id}
+                                subfolders={[{ key: 'pagos', label: 'Pagos' }]}
+                                fixedSubfolder="pagos"
+                                compact={true}
                             />
-
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-                            {documentos.map(file => (
-
-                                <div
-                                    key={file.name}
-                                    className="border rounded-lg p-3 text-center"
-                                >
-
-                                    <FileText className="mx-auto mb-2" />
-
-                                    <p className="text-xs truncate">
-                                        {file.name}
-                                    </p>
-
-                                    <div className="flex justify-center gap-2 mt-2">
-
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            onClick={() => handlePreview(file.name)}
-                                        >
-                                            <FileText className="w-4 h-4" />
-                                        </Button>
-
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            onClick={() => handleDownload(file.name)}
-                                        >
-                                            <Download className="w-4 h-4" />
-                                        </Button>
-
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            onClick={() => handleDeleteFile(file.name)}
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-
-                                    </div>
-
-                                </div>
-
-                            ))}
-
-                        </div>
-
-                        {previewUrl && (
-
-                            <div className="mt-6 border rounded-lg overflow-hidden">
-
-                                <div className="flex justify-end p-2 bg-slate-50">
-
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => setPreviewUrl(null)}
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </Button>
-
-                                </div>
-
-                                <iframe
-                                    src={previewUrl}
-                                    className="w-full h-[500px]"
-                                />
-
-                            </div>
-
+                        ) : (
+                            <DocumentsTab
+                                entidadTipo="pago"
+                                entidadId={pago?.id}
+                                subfolders={[{ key: 'general', label: 'General' }]}
+                                defaultSubfolder="general"
+                                compact={true}
+                            />
                         )}
-
                     </TabsContent>
 
                 </Tabs>

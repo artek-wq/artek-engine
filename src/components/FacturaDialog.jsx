@@ -1,3 +1,5 @@
+import DocumentsTab from "@/components/DocumentsTab";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -296,6 +298,20 @@ function FacturaDialog({ open, onOpenChange, onSuccess, factura }) {
             </Button>
           </div>
         </form>
+
+        {/* Documentos de facturación — solo visible cuando hay operacion_id */}
+        {formData.operacion_id && (
+          <div className="border-t mt-4 pt-4">
+            <p className="text-sm font-semibold text-slate-700 mb-3">Documentos de facturación</p>
+            <DocumentsTab
+              entidadTipo="operacion"
+              entidadId={formData.operacion_id}
+              subfolders={[{ key: 'facturacion', label: 'Facturación' }]}
+              fixedSubfolder="facturacion"
+              compact={true}
+            />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

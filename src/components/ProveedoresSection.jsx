@@ -13,7 +13,7 @@ import {
 import ProveedorDialog from '@/components/ProveedorDialog';
 import ProveedorFilesDialog from '@/components/ProveedorFilesDialog';
 import { useToast } from '@/components/ui/use-toast';
-import { uploadFile, BUCKET_NAME } from '@/lib/fileUtils';
+import { createEntityFolders } from '@/lib/documentService';
 
 function ProveedoresSection() {
 
@@ -120,8 +120,7 @@ function ProveedoresSection() {
         return;
       }
 
-      const placeholderFile = new File([""], ".keep", { type: "text/plain" });
-      await uploadFile(BUCKET_NAME, `proveedores/${inserted.id}`, placeholderFile);
+      await createEntityFolders('proveedor', inserted.id, ['general']);
 
       toast({ title: "Proveedor creado correctamente" });
     }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import FilePreviewModal from "@/components/FilePreviewModal";
 import SubOperacionDialog from '@/components/SubOperacionDialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { uploadDocument, listDocuments, deleteDocument, downloadDocument, getSignedUrl, formatFileSize as docFmtSize, formatDate as docFmtDate, BUCKET } from '@/lib/documentService';
+import DocumentsTab from '@/components/DocumentsTab';
 import { STATUS, STATUS_STYLES, STATUS_ESPECIFICO, STATUS_ESPECIFICO_STYLES, getStatusGeneral } from '@/constants/status';
 import {
     AlertDialog,
@@ -173,8 +174,7 @@ const DetailModal = ({
             .order('created_at', { ascending: true });
 
         if (error) {
-            console.error(error);
-            return;
+            return; // error handled silently
         }
 
         setSubOperaciones(data || []);
@@ -234,7 +234,7 @@ const DetailModal = ({
                     updatedThumbs[file.name] = canvas.toDataURL("image/png");
 
                 } catch (error) {
-                    console.error("Error generando thumbnail PDF:", error);
+                    // thumbnail generation failed silently
                 } finally {
                     setLoadingThumbs(prev => ({ ...prev, [file.name]: false }));
                 }
@@ -327,8 +327,7 @@ const DetailModal = ({
             );
 
         if (error) {
-            console.error(error);
-            return;
+            return; // error handled silently
         }
 
         setPreviewUrl(data.signedUrl);
@@ -384,6 +383,9 @@ const DetailModal = ({
                             <DialogTitle className="text-3xl font-bold tracking-tight">
                                 {operacion?.referencia}
                             </DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Detalle de operación {operacion?.referencia}
+                            </DialogDescription>
 
                             <div className="text-sm font-medium text-slate-600 mt-2">
                                 {operacion?.clientes?.nombre}
@@ -528,213 +530,16 @@ const DetailModal = ({
 
                         {/* DOCUMENTOS */}
                         <TabsContent value="documentos" className="mt-4">
-
-                            {/* Toggle Vista */}
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="flex gap-2">
-                                    <Button size="icon" variant={viewMode === "grid" ? "default" : "outline"} onClick={() => setViewMode("grid")}>
-                                        <Grid className="w-4 h-4" />
-                                    </Button>
-                                    <Button size="icon" variant={viewMode === "list" ? "default" : "outline"} onClick={() => setViewMode("list")}>
-                                        <List className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            {/* DRAG & DROP */}
-                            <div
-                                onDragEnter={() => setDragActive(true)}
-                                onDragLeave={() => setDragActive(false)}
-                                onDragOver={(e) => e.preventDefault()}
-                                onDrop={(e) => {
-                                    e.preventDefault();
-                                    setDragActive(false);
-                                    const file = e.dataTransfer.files[0];
-                                    if (file) handleUpload(file);
-                                }}
-                                className={`border-2 border-dashed rounded-lg p-6 text-center transition mb-4 ${dragActive ? "border-blue-500 bg-blue-50" : "border-slate-300"}`}
-                            >
-                                <p className="text-sm text-slate-600">
-                                    Arrastra archivos aquí o
-                                </p>
-
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="mt-2"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    Seleccionar Archivo
-                                </Button>
-
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={(e) => handleUpload(e.target.files[0])}
-                                    className="hidden"
-                                />
-
-                                {uploading && (
-                                    <div className="mt-4">
-                                        <div className="w-full bg-slate-200 rounded-full h-2">
-                                            <div
-                                                className="bg-blue-600 h-2 rounded-full transition-all"
-                                                style={{ width: `${progress}%` }}
-                                            />
-                                        </div>
-                                        <p className="text-xs mt-1 text-slate-500">
-                                            {progress}% subido
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {errorMsg && (
-                                <p className="text-red-500 text-sm mb-3">
-                                    {errorMsg}
-                                </p>
-                            )}
-
-                            {/* GRID VIEW */}
-                            {viewMode === "grid" && (
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {documentos.map(file => (
-                                        <div
-                                            key={file.name}
-                                            onClick={() => handlePreview(file.name)}
-                                            className="group relative bg-white border border-slate-200 rounded-2xl p-3 transition-all duration-300 cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:border-slate-300"
-                                        >
-                                            <div className="relative h-32 flex items-center justify-center bg-slate-50 rounded-xl overflow-hidden">
-
-                                                {loadingThumbs[file.name] ? (
-                                                    <div className="animate-pulse w-full h-full bg-slate-200" />
-                                                ) : thumbnails[file.name] ? (
-                                                    <img
-                                                        src={thumbnails[file.name]}
-                                                        alt={file.name}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : isPDF(file.name) ? (
-                                                    <FileText className="w-10 h-10 text-red-600" />
-                                                ) : (
-                                                    <FileText className="w-10 h-10 text-slate-400" />
-                                                )}
-
-                                                {/* Overlay oscuro suave */}
-                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300" />
-
-                                                {/* Botones flotantes */}
-                                                <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
-
-                                                    <Button
-                                                        size="icon"
-                                                        variant="secondary"
-                                                        className="h-9 w-9 rounded-full shadow-md"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handlePreview(file.name);
-                                                        }}
-                                                    >
-                                                        <FileText className="w-4 h-4" />
-                                                    </Button>
-
-                                                    <Button
-                                                        size="icon"
-                                                        variant="secondary"
-                                                        className="h-9 w-9 rounded-full shadow-md"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDownload(file.name);
-                                                        }}
-                                                    >
-                                                        <Download className="w-4 h-4" />
-                                                    </Button>
-
-                                                    <Button
-                                                        size="icon"
-                                                        variant="destructive"
-                                                        className="h-9 w-9 rounded-full shadow-md"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setFileToDelete(file.name);
-                                                            setConfirmOpen(true);
-                                                        }}
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
-
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-2 text-sm font-medium truncate">
-                                                {file.name}
-                                            </div>
-
-                                            <div className="text-xs text-slate-500">
-                                                {formatSize(file.metadata?.size)}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* PREVIEW */}
-                            {previewUrl && (
-                                <div className="mt-6 border rounded-xl overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-300">
-
-                                    <div className="flex justify-between items-center px-4 py-3 bg-slate-50 border-b backdrop-blur-sm">
-                                        <span className="text-sm font-medium">
-                                            Preview: {previewName}
-                                        </span>
-
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => setPreviewUrl(null)}
-                                        >
-                                            Cerrar
-                                        </Button>
-                                    </div>
-
-                                    {/* IMAGE PREVIEW */}
-                                    {isImage(previewName) && (
-                                        <img
-                                            src={previewUrl}
-                                            alt="preview"
-                                            className="w-full max-h-[600px] object-contain bg-slate-900"
-                                        />
-                                    )}
-
-                                    {/* PDF PREVIEW */}
-                                    {isPDF(previewName) && (
-                                        <div className="w-full h-[600px]">
-                                            <iframe
-                                                src={previewUrl}
-                                                className="w-full h-full"
-                                                title="PDF Preview"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* FALLBACK PARA OTROS TIPOS */}
-                                    {!isImage(previewName) && !isPDF(previewName) && (
-                                        <div className="p-6 text-center text-slate-500">
-                                            No se puede mostrar el archivo en el navegador.
-                                            <div className="mt-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => handleDownload(previewName)}
-                                                >
-                                                    Descargar archivo
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                </div>
-                            )}
-
+                            <DocumentsTab
+                                entidadTipo="operacion"
+                                entidadId={operacion?.id}
+                                subfolders={[
+                                    { key: 'general', label: 'General' },
+                                    { key: 'pagos', label: 'Pagos' },
+                                    { key: 'facturacion', label: 'Facturación' },
+                                ]}
+                                defaultSubfolder="general"
+                            />
                         </TabsContent>
 
                     </Tabs>
