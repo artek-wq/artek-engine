@@ -25,7 +25,8 @@ import { useToast } from '@/components/ui/use-toast';
 import {
     uploadDocument, listDocuments, deleteDocument, downloadDocument,
     getSignedUrl, formatFileSize, formatDate, isImage, isPDF,
-    TIPOS_DOCUMENTO, getTipoLabel, BUCKET, sanitizeName
+    TIPOS_DOCUMENTO, getTipoLabel, BUCKET, sanitizeName,
+    syncEntityFromStorage
 } from '@/lib/documentService';
 import { supabase } from '@/lib/customSupabaseClient';
 import {
@@ -299,7 +300,10 @@ export default function DocumentsTab({
     const [previewDoc, setPreviewDoc] = useState(null);
     const [deleteDoc, setDeleteDoc] = useState(null);
 
-    // Load docs when entity or subfolder changes
+    // Track if we've already synced storage for this entity
+    const syncedRef = useRef(false);
+
+    // Load docs from documentos table
     const loadDocs = useCallback(async () => {
         if (!entidadId) return;
         setLoading(true);
@@ -313,6 +317,15 @@ export default function DocumentsTab({
         if (error) { toast({ title: 'Error cargando archivos', description: error.message, variant: 'destructive' }); return; }
         setDocs(data || []);
     }, [entidadId, entidadTipo, activeSubf, fixedSubfolder, toast]);
+
+    // On first mount: sync any legacy files from Storage → documentos table, then load
+    useEffect(() => {
+        if (!entidadId || syncedRef.current) return;
+        syncedRef.current = true;
+        const allSubfolders = subfolders.map(s => s.key);
+        // Sync silently in background, then reload
+        syncEntityFromStorage(entidadTipo, entidadId, allSubfolders).then(() => loadDocs());
+    }, [entidadId, entidadTipo]);
 
     useEffect(() => { loadDocs(); }, [loadDocs]);
 

@@ -112,43 +112,30 @@ export async function uploadDocument({ file, entidadTipo, entidadId, subfolder =
 
         // 1. Subir a Storage
         let uploadError;
-        if (onProgress) {
-            // Upload con progreso via XHR
-            const { data: signedData, error: signErr } = await supabase.storage
-                .from(BUCKET)
-                .createSignedUploadUrl(storagePath);
+        // Simular progreso al inicio
+        if (onProgress) onProgress(10);
 
-            if (signErr) throw signErr;
+        const { error } = await supabase.storage
+            .from(BUCKET)
+            .upload(storagePath, file, { cacheControl: '3600', upsert: false });
+        uploadError = error;
 
-            await new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open('PUT', signedData.signedUrl, true);
-                xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-                xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
-                xhr.onload = () => xhr.status === 200 ? resolve() : reject(new Error(`Upload falló: ${xhr.status}`));
-                xhr.onerror = () => reject(new Error('Error de red al subir archivo'));
-                xhr.send(file);
-            });
-        } else {
-            const { error } = await supabase.storage
-                .from(BUCKET)
-                .upload(storagePath, file, { cacheControl: '3600', upsert: false });
-            uploadError = error;
-            // Si ya existe, intentar con nombre único
-            if (uploadError?.message?.includes('already exists') || uploadError?.statusCode === '23505') {
-                const ts = Date.now();
-                const parts = cleanName.split('.');
-                const ext = parts.length > 1 ? '.' + parts.pop() : '';
-                const uniqueName = `${parts.join('.')}_${ts}${ext}`;
-                const uniquePath = `${entidadTipo}/${entidadId}/${subfolder}/${uniqueName}`;
-                const { error: e2 } = await supabase.storage.from(BUCKET).upload(uniquePath, file, { cacheControl: '3600', upsert: false });
-                if (e2) throw e2;
-                // Usar el nombre único
-                const finalPath = uniquePath;
-                return await _registrarDocumento({ user, file, cleanName: uniqueName, storagePath: finalPath, entidadTipo, entidadId, subfolder, tipo });
-            }
-            if (uploadError) throw uploadError;
+        if (onProgress) onProgress(70);
+
+        // Si ya existe el archivo, crear nombre único
+        if (uploadError?.message?.includes('already exists') || uploadError?.statusCode === '23505') {
+            const ts = Date.now();
+            const parts = cleanName.split('.');
+            const ext = parts.length > 1 ? '.' + parts.pop() : '';
+            const uniqueName = `${parts.join('.')}_${ts}${ext}`;
+            const uniquePath = `${entidadTipo}/${entidadId}/${subfolder}/${uniqueName}`;
+            const { error: e2 } = await supabase.storage.from(BUCKET).upload(uniquePath, file, { cacheControl: '3600', upsert: false });
+            if (e2) throw e2;
+            if (onProgress) onProgress(90);
+            return await _registrarDocumento({ user, file, cleanName: uniqueName, storagePath: uniquePath, entidadTipo, entidadId, subfolder, tipo });
         }
+        if (uploadError) throw uploadError;
+        if (onProgress) onProgress(90);
 
         // 2. Registrar en tabla documentos
         return await _registrarDocumento({ user, file, cleanName, storagePath, entidadTipo, entidadId, subfolder, tipo });
@@ -184,6 +171,56 @@ async function _registrarDocumento({ user, file, cleanName, storagePath, entidad
     return { data, error: null };
 }
 
+
+// ─── SYNC FROM STORAGE ───────────────────────────────────────────────────────
+/**
+ * Lee archivos de Storage para una entidad y los registra en la tabla documentos
+ * si no existen ya. Útil para sincronizar archivos subidos antes de esta versión.
+ *
+ * @param {string} entidadTipo
+ * @param {string} entidadId
+ * @param {string[]} subfolders — subcarpetas a escanear
+ */
+export async function syncEntityFromStorage(entidadTipo, entidadId, subfolders = ['general']) {
+    if (!entidadId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    for (const sf of subfolders) {
+        const path = `${entidadTipo}/${entidadId}/${sf}`;
+        const { data: storageFiles } = await supabase.storage.from(BUCKET).list(path, { limit: 200 });
+        if (!storageFiles?.length) continue;
+
+        for (const f of storageFiles) {
+            if (!f.id || !f.name || f.name === '.keep') continue;
+            const storagePath = `${path}/${f.name}`;
+
+            // Check if already in documentos table
+            const { data: existing } = await supabase
+                .from('documentos')
+                .select('id')
+                .eq('archivo_path', storagePath)
+                .maybeSingle();
+
+            if (!existing) {
+                // Register in documentos table
+                await supabase.from('documentos').insert({
+                    nombre: f.name,
+                    archivo_path: storagePath,
+                    entidad_tipo: entidadTipo,
+                    entidad_id: entidadId,
+                    carpeta: sf,
+                    bucket: BUCKET,
+                    mime_type: null,
+                    size: f.metadata?.size || 0,
+                    tipo: detectTipo(f.name),
+                    created_by: user.id,
+                });
+            }
+        }
+    }
+}
+
 // ─── LIST ─────────────────────────────────────────────────────────────────────
 /**
  * Lista documentos de una entidad desde la tabla documentos (rápido, no Storage).
@@ -196,7 +233,15 @@ export async function listDocuments({ entidadTipo, entidadId, subfolder, tipo })
         .eq('entidad_id', entidadId)
         .order('created_at', { ascending: false });
 
-    if (subfolder) query = query.eq('carpeta', subfolder);
+    // Filter by subfolder only when explicitly requested
+    // 'general' also shows docs with null carpeta (legacy files)
+    if (subfolder && subfolder !== 'all') {
+        if (subfolder === 'general') {
+            query = query.or('carpeta.eq.general,carpeta.is.null');
+        } else {
+            query = query.eq('carpeta', subfolder);
+        }
+    }
     if (tipo) query = query.eq('tipo', tipo);
 
     const { data, error } = await query;
