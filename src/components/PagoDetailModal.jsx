@@ -1,289 +1,177 @@
-import DocumentsTab from '@/components/DocumentsTab';
-import React, { useEffect, useState, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import React, { useEffect, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Trash2, Edit, Upload, Download, FileText, X } from "lucide-react";
+import { Trash2, Edit } from "lucide-react";
 import { supabase } from "@/lib/customSupabaseClient";
+import DocumentsTab from "@/components/DocumentsTab";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-const BUCKET = "team-files";
+function Info({ label, value }) {
+    return (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400">{label}</div>
+            <div className="text-sm font-medium text-slate-700 truncate">{value || "—"}</div>
+        </div>
+    );
+}
 
-function PagoDetailModal({
-    open,
-    onOpenChange,
-    pago,
-    onDelete,
-    onEdit
-}) {
+function formatDate(str) {
+    if (!str) return "—";
+    const d = new Date(str);
+    return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
+}
 
-    const [documentos, setDocumentos] = useState([]);
-    const [uploading, setUploading] = useState(false);
-    const [previewUrl, setPreviewUrl] = useState(null);
+function PagoDetailModal({ open, onOpenChange, pago, onDelete, onEdit }) {
+    const [monto, setMonto] = useState("");
+    const [registrando, setRegistrando] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
-    const fileInputRef = useRef(null);
-
-    useEffect(() => {
-        if (open && pago?.id) {
-            fetchDocumentos();
-        }
-    }, [open, pago]);
-
-    const fetchDocumentos = async () => {
-
-        const { data } = await supabase.storage
-            .from(BUCKET)
-            .list(`pagos/${pago.id}`, {
-                limit: 100,
-                sortBy: { column: "created_at", order: "desc" }
-            });
-
-        setDocumentos(data || []);
-    };
-
-    const uploadFile = async (file) => {
-
-        if (!file) return;
-
-        setUploading(true);
-
-        const path = `pagos/${pago.id}/${file.name}`;
-
-        const { error } = await supabase.storage
-            .from(BUCKET)
-            .upload(path, file, { upsert: true });
-
-        if (!error) {
-            fetchDocumentos();
-        }
-
-        setUploading(false);
-    };
-
-    const handleDownload = async (fileName) => {
-
-        const { data } = await supabase.storage
-            .from(BUCKET)
-            .createSignedUrl(`pagos/${pago.id}/${fileName}`, 60);
-
-        if (data?.signedUrl) {
-            window.open(data.signedUrl);
-        }
-    };
-
-    const handlePreview = async (fileName) => {
-
-        const { data } = await supabase.storage
-            .from(BUCKET)
-            .createSignedUrl(`pagos/${pago.id}/${fileName}`, 60);
-
-        if (data?.signedUrl) {
-            setPreviewUrl(data.signedUrl);
-        }
-    };
-
-    const handleDeleteFile = async (fileName) => {
-
-        await supabase.storage
-            .from(BUCKET)
-            .remove([`pagos/${pago.id}/${fileName}`]);
-
-        fetchDocumentos();
-    };
-
-    const registrarPago = async (monto, metodo) => {
-
-        const { data: { user } } = await supabase.auth.getUser();
-
-        await supabase
-            .from("pagos_historial")
-            .insert({
-                pago_id: pago.id,
-                monto,
-                metodo,
-                user_id: user.id
-            });
-
+    const handleRegistrarPago = async () => {
+        if (!monto || isNaN(Number(monto))) return;
+        setRegistrando(true);
         const nuevoPagado = Number(pago.monto_pagado || 0) + Number(monto);
-        const nuevoSaldo = Number(pago.monto_total) - nuevoPagado;
+        const nuevoSaldo = Number(pago.monto_total || pago.monto || 0) - nuevoPagado;
 
-        await supabase
-            .from("pagos")
-            .update({
-                monto_pagado: nuevoPagado,
-                saldo: nuevoSaldo,
-                status: nuevoSaldo <= 0 ? "Pagado" : "Parcial"
-            })
-            .eq("id", pago.id);
-
-        // refrescar datos del modal
-        onEdit({
-            ...pago,
-            monto_pagado: nuevoPagado,
-            saldo: nuevoSaldo,
-            status: nuevoSaldo <= 0 ? "Pagado" : "Parcial"
+        await supabase.from("pagos_historial").insert({
+            pago_id: pago.id,
+            monto: Number(monto),
+            created_at: new Date().toISOString(),
         });
 
-    };
+        await supabase.from("pagos")
+            .update({ monto_pagado: nuevoPagado, saldo: nuevoSaldo })
+            .eq("id", pago.id);
 
-    const formatDate = (date) => {
-        if (!date) return "-";
-        return new Date(date).toLocaleDateString();
+        setMonto("");
+        setRegistrando(false);
+        onOpenChange(false);
     };
 
     if (!pago) return null;
 
+    // Determine where documents go:
+    // If pago has operacion_id → files go to operacion/{id}/pagos/
+    // Otherwise → files go to pago/{id}/general/ (fallback)
+    const docsEntidadTipo = pago.operacion_id ? "operacion" : "pago";
+    const docsEntidadId = pago.operacion_id ? pago.operacion_id : pago.id;
+    const docsSubfolders = pago.operacion_id
+        ? [{ key: "pagos", label: "Pagos" }]
+        : [{ key: "general", label: "General" }];
+    const docsFixed = pago.operacion_id ? "pagos" : undefined;
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <>
+            <Dialog open={open} onOpenChange={onOpenChange}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">
+                            Pago • {pago.referencia}
+                        </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Detalle del pago {pago.referencia}
+                        </DialogDescription>
+                    </DialogHeader>
 
-            <DialogContent className="max-w-4xl">
+                    <Tabs defaultValue="general" className="flex-1 overflow-hidden flex flex-col">
+                        <TabsList className="shrink-0">
+                            <TabsTrigger value="general">General</TabsTrigger>
+                            <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                        </TabsList>
 
-                <DialogHeader>
-                    <DialogTitle className="text-xl font-semibold">
-                        Pago • {pago.referencia}
-                    </DialogTitle>
-                </DialogHeader>
+                        {/* GENERAL TAB */}
+                        <TabsContent value="general" className="mt-6 overflow-y-auto flex-1">
+                            <div className="grid grid-cols-2 gap-3">
+                                <Info label="Cliente" value={pago.cliente} />
+                                <Info label="Proveedor" value={pago.proveedor} />
+                                <Info label="Concepto" value={pago.concepto} />
+                                <Info label="Referencia" value={pago.referencia} />
+                                <Info label="Monto total" value={`${pago.divisa} ${Number(pago.monto_total || pago.monto || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`} />
+                                <Info label="Monto pagado" value={`${pago.divisa} ${Number(pago.monto_pagado || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`} />
+                                <Info label="Saldo" value={`${pago.divisa} ${Number(pago.saldo || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`} />
+                                <Info label="Status" value={pago.status} />
+                                <Info label="Fecha límite" value={formatDate(pago.fecha_limite)} />
+                                <Info label="Fecha creación" value={formatDate(pago.created_at)} />
+                            </div>
 
-                <Tabs defaultValue="general">
+                            {/* Registrar pago parcial */}
+                            <div className="mt-6 border-t pt-4">
+                                <p className="text-sm font-semibold text-slate-700 mb-3">Registrar pago</p>
+                                <div className="flex gap-3">
+                                    <input
+                                        type="number"
+                                        value={monto}
+                                        onChange={e => setMonto(e.target.value)}
+                                        placeholder="Monto a registrar..."
+                                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <Button
+                                        onClick={handleRegistrarPago}
+                                        disabled={registrando || !monto}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        {registrando ? "Guardando..." : "Registrar pago"}
+                                    </Button>
+                                </div>
+                            </div>
+                        </TabsContent>
 
-                    <TabsList>
-                        <TabsTrigger value="general">General</TabsTrigger>
-                        <TabsTrigger value="documentos">Documentos</TabsTrigger>
-                    </TabsList>
-
-                    {/* GENERAL */}
-                    <TabsContent value="general" className="mt-6">
-
-                        <div className="grid grid-cols-2 gap-4">
-
-                            <Info label="Cliente" value={pago.cliente} />
-                            <Info label="Proveedor" value={pago.proveedor} />
-                            <Info label="Concepto" value={pago.concepto} />
-
-                            <Info
-                                label="Monto"
-                                value={`${pago.divisa} ${Number(pago.monto_total || pago.monto || 0).toLocaleString()}`}
+                        {/* DOCUMENTOS TAB */}
+                        <TabsContent value="documentos" className="mt-4 overflow-y-auto flex-1">
+                            <DocumentsTab
+                                entidadTipo={docsEntidadTipo}
+                                entidadId={docsEntidadId}
+                                subfolders={docsSubfolders}
+                                fixedSubfolder={docsFixed}
+                                compact={true}
                             />
+                        </TabsContent>
+                    </Tabs>
 
-                            <Info
-                                label="Pagado"
-                                value={`${pago.divisa} ${Number(pago.monto_pagado || 0).toLocaleString()}`}
-                            />
-
-                            <Info
-                                label="Pendiente"
-                                value={`${pago.divisa} ${Number(pago.saldo || 0).toLocaleString()}`}
-                            />
-
-                            <Info label="Status" value={pago.status} />
-
-                            <Info
-                                label="Fecha límite"
-                                value={formatDate(pago.fecha_limite)}
-                            />
-
-                            <Info
-                                label="Creado"
-                                value={formatDate(pago.created_at)}
-                            />
-
+                    {/* Footer */}
+                    <div className="flex justify-between pt-4 border-t shrink-0">
+                        <div className="flex gap-3">
+                            <Button
+                                variant="destructive"
+                                onClick={() => setConfirmDelete(true)}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />Eliminar
+                            </Button>
+                            {onEdit && (
+                                <Button variant="outline" onClick={() => { onEdit(pago); onOpenChange(false); }}>
+                                    <Edit className="w-4 h-4 mr-2" />Editar
+                                </Button>
+                            )}
                         </div>
-
-                    </TabsContent>
-
-                    {/* DOCUMENTOS */}
-                    <TabsContent value="documentos" className="mt-6">
-                        {pago?.operacion_id ? (
-                            <DocumentsTab
-                                entidadTipo="operacion"
-                                entidadId={pago.operacion_id}
-                                subfolders={[{ key: 'pagos', label: 'Pagos' }]}
-                                fixedSubfolder="pagos"
-                                compact={true}
-                            />
-                        ) : (
-                            <DocumentsTab
-                                entidadTipo="pago"
-                                entidadId={pago?.id}
-                                subfolders={[{ key: 'general', label: 'General' }]}
-                                defaultSubfolder="general"
-                                compact={true}
-                            />
-                        )}
-                    </TabsContent>
-
-                </Tabs>
-
-                {/* FOOTER */}
-                <div className="flex justify-between mt-6">
-
-                    <div className="flex gap-3">
-
-                        <Button
-                            variant="destructive"
-                            onClick={() => {
-                                onDelete(pago.id);
-                                onOpenChange(false);
-                            }}
-                        >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Eliminar
-                        </Button>
-
-                        <Button
-                            variant="secondary"
-                            onClick={() => {
-
-                                const monto = prompt("Monto del pago:");
-                                const metodo = prompt("Método (Transferencia / Efectivo / etc):");
-
-                                if (!monto) return;
-
-                                registrarPago(Number(monto), metodo);
-
-                            }}
-                        >
-                            Registrar pago
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            onClick={() => onEdit(pago)}
-                        >
-                            <Edit className="w-4 h-4 mr-2" />
-                            Editar
-                        </Button>
-
+                        <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
                     </div>
+                </DialogContent>
+            </Dialog>
 
-                    <Button
-                        variant="ghost"
-                        onClick={() => onOpenChange(false)}
-                    >
-                        Cerrar
-                    </Button>
-
-                </div>
-
-            </DialogContent>
-
-        </Dialog>
+            <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar pago?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Se eliminará permanentemente el pago <strong>{pago.referencia}</strong>.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={() => { onDelete?.(pago.id); setConfirmDelete(false); onOpenChange(false); }}
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 }
-
-const Info = ({ label, value }) => (
-
-    <div className="bg-slate-50 border rounded-lg p-3">
-
-        <div className="text-xs text-slate-400 uppercase">
-            {label}
-        </div>
-
-        <div className="text-sm font-medium text-slate-700">
-            {value || "-"}
-        </div>
-
-    </div>
-
-);
 
 export default PagoDetailModal;
