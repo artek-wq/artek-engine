@@ -25,29 +25,29 @@ import {
 
 const ROOT_CATEGORIES = [
   {
-    key: "operaciones", label: "Operaciones", color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-600", icon: Package, table: "operaciones", nameField: "referencia",
+    key: "operaciones", storageKey: "operacion", label: "Operaciones", color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-600", icon: Package, table: "operaciones", nameField: "referencia",
     extraSelect: "referencia, clientes(nombre), status, tipo_operacion, status_especifico",
     renderSub: op => `${op.clientes?.nombre || "—"} · ${op.status_especifico || op.status || ""}`,
     renderBadge: op => ({ label: op.tipo_operacion || "M", color: "bg-blue-100 text-blue-700" }),
     subfolders: [{ key: "general", label: "General" }, { key: "pagos", label: "Pagos" }, { key: "facturacion", label: "Facturación" }]
   },
   {
-    key: "ventas", label: "Ventas CRM", color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-600", icon: BarChart2, table: null, nameField: null,
+    key: "ventas", storageKey: "ventas", label: "Ventas CRM", color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-600", icon: BarChart2, table: null, nameField: null,
     subfolders: [{ key: "general", label: "General" }]
   },
   {
-    key: "clientes", label: "Clientes", color: "bg-pink-500", light: "bg-pink-50", text: "text-pink-600", icon: Users, table: "clientes", nameField: "nombre",
+    key: "clientes", storageKey: "cliente", label: "Clientes", color: "bg-pink-500", light: "bg-pink-50", text: "text-pink-600", icon: Users, table: "clientes", nameField: "nombre",
     extraSelect: "nombre, rfc, domicilio",
     renderSub: c => `RFC: ${c.rfc || "—"}`,
     renderBadge: null,
     subfolders: [{ key: "general", label: "General" }]
   },
   {
-    key: "finanzas", label: "Finanzas", color: "bg-orange-500", light: "bg-orange-50", text: "text-orange-600", icon: BarChart2, table: null, nameField: null,
+    key: "finanzas", storageKey: "finanzas", label: "Finanzas", color: "bg-orange-500", light: "bg-orange-50", text: "text-orange-600", icon: BarChart2, table: null, nameField: null,
     subfolders: [{ key: "general", label: "General" }]
   },
   {
-    key: "proveedores", label: "Proveedores", color: "bg-teal-500", light: "bg-teal-50", text: "text-teal-600", icon: Truck, table: "proveedores", nameField: "razon_social",
+    key: "proveedores", storageKey: "proveedor", label: "Proveedores", color: "bg-teal-500", light: "bg-teal-50", text: "text-teal-600", icon: Truck, table: "proveedores", nameField: "razon_social",
     extraSelect: "razon_social, rfc",
     renderSub: p => `RFC: ${p.rfc || "—"}`,
     renderBadge: null,
@@ -514,7 +514,10 @@ export default function FileManager() {
     if (!entity) return;
     setLoading(true);
     const folder = subfolder || "general";
-    const cat = catKey || category;
+    const catKeyResolved = catKey || category;
+    // Use storageKey (singular) for Storage paths — matches documentService
+    const catCfg = ROOT_CATEGORIES.find(c => c.key === catKeyResolved);
+    const cat = catCfg?.storageKey || catKeyResolved;
     const path = `${cat}/${entity.id}/${folder}`;
     const { data, error } = await listFiles(BUCKET_NAME, path);
     setLoading(false);
@@ -619,7 +622,9 @@ export default function FileManager() {
   const handleCreateFolder = useCallback(async (folderName) => {
     if (!selectedEntity || !category) return;
     const cleanName = folderName.replace(/[^a-zA-Z0-9_\-áéíóúüñÁÉÍÓÚÜÑ ]/g, "_").trim();
-    const keepPath = `${category}/${selectedEntity.id}/${activeSubfolder}/${cleanName}/.keep`;
+    const catCfgF = ROOT_CATEGORIES.find(c => c.key === category);
+    const storKey = catCfgF?.storageKey || category;
+    const keepPath = `${storKey}/${selectedEntity.id}/${activeSubfolder}/${cleanName}/.keep`;
     const keepBlob = new Blob([""], { type: "text/plain" });
     const { error } = await supabase.storage.from(BUCKET).upload(keepPath, keepBlob, { upsert: false });
     if (error && !error.message.includes("already exists")) {

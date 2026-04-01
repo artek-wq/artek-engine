@@ -186,40 +186,47 @@ export async function syncEntityFromStorage(entidadTipo, entidadId, subfolders =
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Support both singular (new: 'operacion') and plural (legacy: 'operaciones') paths
+    const pluralMap = { operacion: 'operaciones', cliente: 'clientes', proveedor: 'proveedores' };
+    const legacyTipo = pluralMap[entidadTipo] || null;
+
     for (const sf of subfolders) {
-        const path = `${entidadTipo}/${entidadId}/${sf}`;
-        const { data: storageFiles } = await supabase.storage.from(BUCKET).list(path, { limit: 200 });
-        if (!storageFiles?.length) continue;
+        const pathsToCheck = [`${entidadTipo}/${entidadId}/${sf}`];
+        if (legacyTipo) pathsToCheck.push(`${legacyTipo}/${entidadId}/${sf}`);
 
-        for (const f of storageFiles) {
-            if (!f.id || !f.name || f.name === '.keep') continue;
-            const storagePath = `${path}/${f.name}`;
+        for (const basePath of pathsToCheck) {
+            const { data: storageFiles } = await supabase.storage.from(BUCKET).list(basePath, { limit: 200 });
+            if (!storageFiles?.length) continue;
 
-            // Check if already in documentos table
-            const { data: existing } = await supabase
-                .from('documentos')
-                .select('id')
-                .eq('archivo_path', storagePath)
-                .maybeSingle();
+            for (const f of storageFiles) {
+                if (!f.id || !f.name || f.name === '.keep') continue;
+                const storagePath = `${basePath}/${f.name}`;
 
-            if (!existing) {
-                // Register in documentos table
-                await supabase.from('documentos').insert({
-                    nombre: f.name,
-                    archivo_path: storagePath,
-                    entidad_tipo: entidadTipo,
-                    entidad_id: entidadId,
-                    carpeta: sf,
-                    bucket: BUCKET,
-                    mime_type: null,
-                    size: f.metadata?.size || 0,
-                    tipo: detectTipo(f.name),
-                    created_by: user.id,
-                });
+                const { data: existing } = await supabase
+                    .from('documentos')
+                    .select('id')
+                    .eq('archivo_path', storagePath)
+                    .maybeSingle();
+
+                if (!existing) {
+                    await supabase.from('documentos').insert({
+                        nombre: f.name,
+                        archivo_path: storagePath,
+                        entidad_tipo: entidadTipo,
+                        entidad_id: entidadId,
+                        carpeta: sf,
+                        bucket: BUCKET,
+                        mime_type: null,
+                        size: f.metadata?.size || 0,
+                        tipo: detectTipo(f.name),
+                        created_by: user.id,
+                    });
+                }
             }
         }
     }
 }
+
 
 // ─── LIST ─────────────────────────────────────────────────────────────────────
 /**
