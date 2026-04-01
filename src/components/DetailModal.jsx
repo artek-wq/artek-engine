@@ -191,7 +191,7 @@ const DetailModal = ({
             // 🛑 Si ya existe thumbnail, NO volver a generarlo
             if (updatedThumbs[file.name]) continue;
 
-            const filePath = file.fullPath || file.archivo_path || `operacion/${operacion.id}/general/${file.name}`;
+            const filePath = file.fullPath || file.archivo_path || `operaciones/${operacion.id}/general/${file.name}`;
 
             // 🔄 Activar loading por archivo
             setLoadingThumbs(prev => ({ ...prev, [file.name]: true }));
@@ -255,7 +255,7 @@ const DetailModal = ({
 
     const uploadFileWithProgress = async (file) => {
         const cleanName = sanitizeFileName(file.name);
-        const path = `operacion/${operacion.id}/general/${cleanName}`;
+        const path = `operaciones/${operacion.id}/general/${cleanName}`;
 
         const { data, error } = await supabase.storage
             .from(BUCKET)
@@ -309,7 +309,7 @@ const DetailModal = ({
     const handleDownload = async (fileOrName) => {
         const path = typeof fileOrName === 'object'
             ? (fileOrName.archivo_path || fileOrName.fullPath)
-            : `operacion/${operacion.id}/general/${fileOrName}`;
+            : `operaciones/${operacion.id}/general/${fileOrName}`;
         const name = typeof fileOrName === 'object'
             ? (fileOrName.nombre || fileOrName.name)
             : fileOrName;
@@ -322,7 +322,7 @@ const DetailModal = ({
         const { data, error } = await supabase.storage
             .from(BUCKET)
             .createSignedUrl(
-                `operacion/${operacion.id}/general/${fileName}`,
+                `operaciones/${operacion.id}/general/${fileName}`,
                 60
             );
 
@@ -339,7 +339,7 @@ const DetailModal = ({
     const handleDeleteFile = async (fileOrName) => {
         const doc = typeof fileOrName === 'object'
             ? fileOrName
-            : { archivo_path: `operacion/${operacion.id}/general/${fileOrName}`, nombre: fileOrName };
+            : { archivo_path: `operaciones/${operacion.id}/general/${fileOrName}`, nombre: fileOrName };
         await deleteDocument(doc);
         fetchDocumentos(operacion.id);
         setPreviewUrl(null);

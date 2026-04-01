@@ -16,6 +16,23 @@ import { supabase } from '@/lib/customSupabaseClient';
 
 export const BUCKET = 'team-files';
 
+// Maps entidad_tipo (singular, used in DB) → Storage folder name (plural, matches existing data)
+// This ensures new uploads go to the same folders as legacy files
+const STORAGE_FOLDER = {
+    operacion: 'operaciones',
+    cliente: 'clientes',
+    proveedor: 'proveedores',
+    pago: 'pagos',
+    facturacion: 'facturacion',
+    ventas: 'crm',
+    finanzas: 'finanzas',
+};
+
+// Get the Storage folder name for an entidad_tipo
+function storageFolder(entidadTipo) {
+    return STORAGE_FOLDER[entidadTipo] || entidadTipo;
+}
+
 // ─── TIPOS DE DOCUMENTO (estándar forwarding) ─────────────────────────────────
 export const TIPOS_DOCUMENTO = [
     { value: 'general', label: 'General / Otro' },
@@ -48,7 +65,7 @@ export async function createEntityFolders(entidadTipo, entidadId, subfolders = [
     const keep = new Blob([''], { type: 'text/plain' });
     const results = await Promise.allSettled(
         subfolders.map(async sf => {
-            const path = `${entidadTipo}/${entidadId}/${sf}/.keep`;
+            const path = `${storageFolder(entidadTipo)}/${entidadId}/${sf}/.keep`;
             await supabase.storage.from(BUCKET).upload(path, keep, { upsert: false });
         })
     );
@@ -107,7 +124,7 @@ export async function uploadDocument({ file, entidadTipo, entidadId, subfolder =
         if (!user) throw new Error('Sesión inválida. Inicia sesión nuevamente.');
 
         const cleanName = sanitizeName(file.name);
-        const storagePath = `${entidadTipo}/${entidadId}/${subfolder}/${cleanName}`;
+        const storagePath = `${storageFolder(entidadTipo)}/${entidadId}/${subfolder}/${cleanName}`;
         const tipo = tipoManual || detectTipo(file.name);
 
         // 1. Subir a Storage
@@ -128,7 +145,7 @@ export async function uploadDocument({ file, entidadTipo, entidadId, subfolder =
             const parts = cleanName.split('.');
             const ext = parts.length > 1 ? '.' + parts.pop() : '';
             const uniqueName = `${parts.join('.')}_${ts}${ext}`;
-            const uniquePath = `${entidadTipo}/${entidadId}/${subfolder}/${uniqueName}`;
+            const uniquePath = `${storageFolder(entidadTipo)}/${entidadId}/${subfolder}/${uniqueName}`;
             const { error: e2 } = await supabase.storage.from(BUCKET).upload(uniquePath, file, { cacheControl: '3600', upsert: false });
             if (e2) throw e2;
             if (onProgress) onProgress(90);
@@ -186,13 +203,14 @@ export async function syncEntityFromStorage(entidadTipo, entidadId, subfolders =
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Support both singular (new: 'operacion') and plural (legacy: 'operaciones') paths
-    const pluralMap = { operacion: 'operaciones', cliente: 'clientes', proveedor: 'proveedores' };
-    const legacyTipo = pluralMap[entidadTipo] || null;
+    // Use the canonical plural folder name (e.g. operaciones/, clientes/)
+    // Also check singular fallback for any files uploaded during transition period
 
     for (const sf of subfolders) {
-        const pathsToCheck = [`${entidadTipo}/${entidadId}/${sf}`];
-        if (legacyTipo) pathsToCheck.push(`${legacyTipo}/${entidadId}/${sf}`);
+        const canonicalPath = `${storageFolder(entidadTipo)}/${entidadId}/${sf}`;
+        const singularPath = `${entidadTipo}/${entidadId}/${sf}`;
+        const pathsToCheck = [canonicalPath];
+        if (singularPath !== canonicalPath) pathsToCheck.push(singularPath);
 
         for (const basePath of pathsToCheck) {
             const { data: storageFiles } = await supabase.storage.from(BUCKET).list(basePath, { limit: 200 });
