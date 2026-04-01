@@ -648,7 +648,9 @@ export default function FileManager() {
   const currentCat = ROOT_CATEGORIES.find(c => c.key === category);
   const isSearchMode = searchQuery.length >= 2;
   const displayFiles = isSearchMode ? searchResults : files;
-  const currentFolder = selectedEntity ? `${category}/${selectedEntity.id}/${activeSubfolder}` : "";
+  // Use storageKey (singular) for upload paths — matches documentService
+  const currentCatStorage = catConfig?.storageKey || category;
+  const currentFolder = selectedEntity ? `${currentCatStorage}/${selectedEntity.id}/${activeSubfolder}` : "";
   // Subfolders del la categoría activa (definidos por categoría)
   const activeCatSubfolders = catConfig?.subfolders || [{ key: "general", label: "General" }];
   const showSubfolderTabs = level === "files" && !isSearchMode && catConfig;

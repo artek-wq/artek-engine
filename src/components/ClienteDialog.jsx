@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Plus, Trash2, UserCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { uploadFile, BUCKET_NAME } from '@/lib/fileUtils';
+
 import { useToast } from '@/components/ui/use-toast';
 import { logError } from '@/lib/ErrorLogger';
 
@@ -46,15 +46,15 @@ function ClienteDialog({ open, onOpenChange, onSave, initialData }) {
     if (!formData.rfc.trim()) newErrors.rfc = 'El RFC es obligatorio';
     if (!formData.domicilio.trim()) newErrors.domicilio = 'El domicilio es obligatorio';
     if (!formData.codigoPostal.trim()) newErrors.codigoPostal = 'El código postal es obligatorio';
-    
+
     if (formData.contactos.length === 0) {
       newErrors.contactos = 'Debe registrar al menos un contacto';
     }
 
     formData.contactos.forEach((contact, index) => {
-        if (!contact.nombre.trim()) {
-            newErrors[`contacto_${index}_nombre`] = 'El nombre del contacto es obligatorio';
-        }
+      if (!contact.nombre.trim()) {
+        newErrors[`contacto_${index}_nombre`] = 'El nombre del contacto es obligatorio';
+      }
     });
 
     setErrors(newErrors);
@@ -75,18 +75,7 @@ function ClienteDialog({ open, onOpenChange, onSave, initialData }) {
     setIsSubmitting(true);
 
     try {
-      // Create folder if new client
-      if (!initialData) {
-        const folderName = formData.nombre.trim().replace(/[^a-zA-Z0-9-_ ]/g, '');
-        const placeholderFile = new File([""], ".keep", { type: "text/plain" });
-        const { error: uploadError } = await uploadFile(BUCKET_NAME, `clientes/${folderName}`, placeholderFile);
-        
-        if (uploadError) {
-          logError('Error creating client folder', 'STORAGE', uploadError);
-          console.warn("Could not create initial folder, but proceeding with client creation", uploadError);
-        }
-      }
-
+      // Folder creation is handled by ClientesSection after insert (uses UUID)
       await onSave(formData);
       onOpenChange(false);
     } catch (error) {
@@ -109,9 +98,9 @@ function ClienteDialog({ open, onOpenChange, onSave, initialData }) {
         contactos: [...formData.contactos, { nombre: '', puesto: '', telefono: '', email: '' }]
       });
       if (errors.contactos) {
-          const newErrors = {...errors};
-          delete newErrors.contactos;
-          setErrors(newErrors);
+        const newErrors = { ...errors };
+        delete newErrors.contactos;
+        setErrors(newErrors);
       }
     }
   };
@@ -134,7 +123,7 @@ function ClienteDialog({ open, onOpenChange, onSave, initialData }) {
         <DialogHeader>
           <DialogTitle>{initialData ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Main Info Section */}
           <div className="space-y-4">
@@ -195,16 +184,16 @@ function ClienteDialog({ open, onOpenChange, onSave, initialData }) {
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <div className="flex flex-col">
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${errors.contactos ? 'text-red-500' : 'text-slate-500'}`}>
-                      Personas de Contacto ({formData.contactos.length}/3) *
-                  </h3>
-                  {errors.contactos && <span className="text-xs text-red-500">{errors.contactos}</span>}
+                <h3 className={`text-sm font-semibold uppercase tracking-wider ${errors.contactos ? 'text-red-500' : 'text-slate-500'}`}>
+                  Personas de Contacto ({formData.contactos.length}/3) *
+                </h3>
+                {errors.contactos && <span className="text-xs text-red-500">{errors.contactos}</span>}
               </div>
               {formData.contactos.length < 3 && (
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={addContacto}
                   className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                 >
@@ -240,7 +229,7 @@ function ClienteDialog({ open, onOpenChange, onSave, initialData }) {
                       <div className="hidden sm:flex w-10 h-10 bg-white rounded-full items-center justify-center border border-slate-200 text-slate-400 shrink-0">
                         <UserCircle className="w-6 h-6" />
                       </div>
-                      
+
                       <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label className={`text-xs ${errors[`contacto_${index}_nombre`] ? 'text-red-500' : 'text-slate-500'}`}>Nombre Completo *</Label>
@@ -287,14 +276,14 @@ function ClienteDialog({ open, onOpenChange, onSave, initialData }) {
                   </motion.div>
                 ))}
               </AnimatePresence>
-              
+
               {formData.contactos.length === 0 && (
                 <div className="text-center py-6 bg-slate-50/50 rounded-lg border border-dashed border-red-200 bg-red-50/30">
                   <p className="text-sm text-red-500 font-medium">Requerido: No hay contactos registrados</p>
-                  <Button 
-                    type="button" 
-                    variant="link" 
-                    size="sm" 
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
                     onClick={addContacto}
                     className="text-blue-600 font-medium"
                   >
