@@ -12,8 +12,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/customSupabaseClient";
 import { listFiles, downloadFile, deleteFile, BUCKET_NAME } from "@/lib/fileUtils";
 import {
-  searchDocuments, deleteDocument, downloadDocument, getSignedUrl as docGetSignedUrl,
-  renameDocument, formatFileSize, formatDate, BUCKET,
+  searchDocuments, listDocuments, deleteDocument, downloadDocument,
+  getSignedUrl as docGetSignedUrl, renameDocument, formatFileSize, formatDate, BUCKET,
 } from "@/lib/documentService";
 import FileUploadDialog from "@/components/FileUploadDialog";
 import {
@@ -512,26 +512,44 @@ export default function FileManager() {
     setLevel("entities");
   }, [toast]);
 
-  // FIX: loadFiles recibe catKey explícitamente para evitar stale closure
+  // Maps plural category key → singular entidad_tipo for DB queries
+  const ENTIDAD_TIPO_MAP = {
+    operaciones: 'operacion',
+    clientes: 'cliente',
+    proveedores: 'proveedor',
+    pagos: 'pago',
+    ventas: 'ventas',
+    finanzas: 'finanzas',
+  };
+
   const loadFiles = useCallback(async (entity, subfolder, catKey) => {
     if (!entity) return;
     setLoading(true);
     const folder = subfolder || "general";
-    const cat = catKey || category;
-    // category key is already plural (operaciones, clientes, proveedores) = Storage folder name
-    const path = `${cat}/${entity.id}/${folder}`;
-    const { data, error } = await listFiles(BUCKET_NAME, path);
+    const catKeyRes = catKey || category;
+    const entidadTipo = ENTIDAD_TIPO_MAP[catKeyRes] || catKeyRes;
+
+    // Read from documentos table (consistent with DocumentsTab uploads)
+    const { data, error } = await listDocuments({
+      entidadTipo,
+      entidadId: entity.id,
+      subfolder: folder,
+    });
     setLoading(false);
 
     if (error) { toast({ title: "Error cargando archivos", description: error.message, variant: "destructive" }); return; }
-    const clean = (data || []).filter(f => f.name && f.name !== ".keep" && f.id !== null);
-    setFiles(clean.map(f => ({
-      ...f,
-      folder: path,
-      // Encode spaces/special chars in filename to avoid 400 errors on Storage API
-      fullPath: `${path}/${encodeURIComponent(f.name).replace(/%2F/g, '/')}`,
-      // Keep original name for display
-      name: f.name,
+
+    // Normalize to file format expected by FileCardGrid/FileRowList
+    const storageFolderPath = `${catKeyRes}/${entity.id}/${folder}`;
+    setFiles((data || []).map(doc => ({
+      id: doc.id,
+      name: doc.nombre,
+      folder: storageFolderPath,
+      fullPath: doc.archivo_path,
+      metadata: { size: doc.size },
+      created_at: doc.created_at,
+      _docId: doc.id,
+      _tipo: doc.tipo,
     })));
     setSelectedEntity(entity);
     setLevel("files");
@@ -648,6 +666,9 @@ export default function FileManager() {
   const isSearchMode = searchQuery.length >= 2;
   const displayFiles = isSearchMode ? searchResults : files;
   // category key IS the Storage folder name (plural matches existing Storage structure)
+  // Map plural category key to singular entidad_tipo for documentService
+  const ETMAP_UPLOAD = { operaciones: 'operacion', clientes: 'cliente', proveedores: 'proveedor', pagos: 'pago', ventas: 'ventas', finanzas: 'finanzas' };
+  const uploadEntidadTipo = ETMAP_UPLOAD[category] || category;
   const currentFolder = selectedEntity ? `${category}/${selectedEntity.id}/${activeSubfolder}` : "";
   // Subfolders del la categoría activa (definidos por categoría)
   const activeCatSubfolders = catConfig?.subfolders || [{ key: "general", label: "General" }];
@@ -793,7 +814,16 @@ export default function FileManager() {
           {/* ENTITIES — se oculta cuando hay búsqueda activa */}
           {level === "entities" && !isSearchMode && (
             <EntityList entities={entities} category={category} catConfig={catConfig}
-              onSelectEntity={entity => { setActiveSubfolder("general"); loadFiles(entity, "general", category); }} />
+              onSelectEntity={async (entity) => {
+                setActiveSubfolder("general");
+                // Sync legacy Storage files → documentos table on first open
+                const { syncEntityFromStorage } = await import('@/lib/documentService');
+                const catKeyRes = category;
+                const ETMAP = { operaciones: 'operacion', clientes: 'cliente', proveedores: 'proveedor', pagos: 'pago', ventas: 'ventas', finanzas: 'finanzas' };
+                const et = ETMAP[catKeyRes] || catKeyRes;
+                const sfs = catConfig?.subfolders?.map(s => s.key) || ['general'];
+                syncEntityFromStorage(et, entity.id, sfs).then(() => loadFiles(entity, 'general', category));
+              }} />
           )}
 
           {/* FILES — visible en modo files O en modo búsqueda */}
@@ -906,7 +936,13 @@ export default function FileManager() {
       {deleteFile_ && <DeleteConfirmDialog file={deleteFile_} onConfirm={handleDeleteConfirm} onClose={() => setDeleteFile_(null)} />}
       {newFolderOpen && <NewFolderDialog onConfirm={handleCreateFolder} onClose={() => setNewFolderOpen(false)} />}
 
-      <FileUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} currentFolder={currentFolder}
+      <FileUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        entidadTipo={uploadEntidadTipo}
+        entidadId={selectedEntity?.id}
+        subfolder={activeSubfolder}
+        currentFolder={currentFolder}
         onUploadComplete={() => { loadFiles(selectedEntity, activeSubfolder, category); loadStats(); setUploadOpen(false); }} />
     </div>
   );
