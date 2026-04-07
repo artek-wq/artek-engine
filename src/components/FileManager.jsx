@@ -76,6 +76,9 @@ function getFileTypeIcon(name = "") {
   return { Icon: File, color: "text-slate-400", bg: "bg-slate-50" };
 }
 
+// Cache: track entities already synced this session (avoids redundant Storage scans)
+const _syncedEntities = new Set();
+
 // Búsqueda en tabla documentos — rápida, confiable, no hace requests a Storage
 async function searchInDocumentos(query) {
   if (!query || query.length < 2) return [];
@@ -816,13 +819,20 @@ export default function FileManager() {
             <EntityList entities={entities} category={category} catConfig={catConfig}
               onSelectEntity={async (entity) => {
                 setActiveSubfolder("general");
-                // Sync legacy Storage files → documentos table on first open
-                const { syncEntityFromStorage } = await import('@/lib/documentService');
-                const catKeyRes = category;
-                const ETMAP = { operaciones: 'operacion', clientes: 'cliente', proveedores: 'proveedor', pagos: 'pago', ventas: 'ventas', finanzas: 'finanzas' };
-                const et = ETMAP[catKeyRes] || catKeyRes;
-                const sfs = catConfig?.subfolders?.map(s => s.key) || ['general'];
-                syncEntityFromStorage(et, entity.id, sfs).then(() => loadFiles(entity, 'general', category));
+                // 1. Load from DB immediately (fast)
+                loadFiles(entity, 'general', category);
+                // 2. Sync Storage → DB only once per entity per session
+                const cacheKey = `${category}:${entity.id}`;
+                if (!_syncedEntities.has(cacheKey)) {
+                  _syncedEntities.add(cacheKey);
+                  const ETMAP = { operaciones: 'operacion', clientes: 'cliente', proveedores: 'proveedor', pagos: 'pago', ventas: 'ventas', finanzas: 'finanzas' };
+                  const et = ETMAP[category] || category;
+                  const sfs = catConfig?.subfolders?.map(s => s.key) || ['general'];
+                  const { syncEntityFromStorage } = await import('@/lib/documentService');
+                  syncEntityFromStorage(et, entity.id, sfs).then(({ newFiles }) => {
+                    if (newFiles > 0) loadFiles(entity, 'general', category);
+                  });
+                }
               }} />
           )}
 

@@ -199,12 +199,11 @@ async function _registrarDocumento({ user, file, cleanName, storagePath, entidad
  * @param {string[]} subfolders — subcarpetas a escanear
  */
 export async function syncEntityFromStorage(entidadTipo, entidadId, subfolders = ['general']) {
-    if (!entidadId) return;
+    if (!entidadId) return { newFiles: 0 };
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return { newFiles: 0 };
 
-    // Use the canonical plural folder name (e.g. operaciones/, clientes/)
-    // Also check singular fallback for any files uploaded during transition period
+    let newFiles = 0;
 
     for (const sf of subfolders) {
         const canonicalPath = `${storageFolder(entidadTipo)}/${entidadId}/${sf}`;
@@ -213,36 +212,47 @@ export async function syncEntityFromStorage(entidadTipo, entidadId, subfolders =
         if (singularPath !== canonicalPath) pathsToCheck.push(singularPath);
 
         for (const basePath of pathsToCheck) {
-            const { data: storageFiles } = await supabase.storage.from(BUCKET).list(basePath, { limit: 200 });
+            // 1. List files in Storage
+            const { data: storageFiles } = await supabase.storage
+                .from(BUCKET).list(basePath, { limit: 200 });
             if (!storageFiles?.length) continue;
 
-            for (const f of storageFiles) {
-                if (!f.id || !f.name || f.name === '.keep') continue;
-                const storagePath = `${basePath}/${f.name}`;
+            const validFiles = storageFiles.filter(f => f.id && f.name && f.name !== '.keep');
+            if (!validFiles.length) continue;
 
-                const { data: existing } = await supabase
-                    .from('documentos')
-                    .select('id')
-                    .eq('archivo_path', storagePath)
-                    .maybeSingle();
+            // 2. Get ALL existing paths for this entity/subfolder in ONE query (not per-file)
+            const storagePaths = validFiles.map(f => `${basePath}/${f.name}`);
+            const { data: existing } = await supabase
+                .from('documentos')
+                .select('archivo_path')
+                .in('archivo_path', storagePaths);
 
-                if (!existing) {
-                    await supabase.from('documentos').insert({
-                        nombre: f.name,
-                        archivo_path: storagePath,
-                        entidad_tipo: entidadTipo,
-                        entidad_id: entidadId,
-                        carpeta: sf,
-                        bucket: BUCKET,
-                        mime_type: null,
-                        size: f.metadata?.size || 0,
-                        tipo: detectTipo(f.name),
-                        created_by: user.id,
-                    });
-                }
+            const existingSet = new Set((existing || []).map(d => d.archivo_path));
+
+            // 3. Insert only the missing ones in ONE batch
+            const toInsert = validFiles
+                .filter(f => !existingSet.has(`${basePath}/${f.name}`))
+                .map(f => ({
+                    nombre: f.name,
+                    archivo_path: `${basePath}/${f.name}`,
+                    entidad_tipo: entidadTipo,
+                    entidad_id: entidadId,
+                    carpeta: sf,
+                    bucket: BUCKET,
+                    mime_type: null,
+                    size: f.metadata?.size || 0,
+                    tipo: detectTipo(f.name),
+                    created_by: user.id,
+                }));
+
+            if (toInsert.length > 0) {
+                await supabase.from('documentos').insert(toInsert);
+                newFiles += toInsert.length;
             }
         }
     }
+
+    return { newFiles };
 }
 
 
