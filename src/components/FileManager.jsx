@@ -29,7 +29,7 @@ import {
 const ROOT_CATEGORIES = [
   {
     key: "operaciones", label: "Operaciones", color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-600", icon: Package, table: "operaciones", nameField: "referencia",
-    extraSelect: "id, referencia, clientes(nombre), status, tipo_operacion, status_especifico",
+    extraSelect: "id, created_at, referencia, clientes(nombre), status, tipo_operacion, status_especifico",
     renderSub: op => `${op.clientes?.nombre || "—"} · ${op.status_especifico || op.status || ""}`,
     renderBadge: op => ({ label: op.tipo_operacion || "M", color: "bg-blue-100 text-blue-700" }),
     subfolders: [{ key: "general", label: "General" }, { key: "pagos", label: "Pagos" }, { key: "facturacion", label: "Facturación" }]
@@ -40,7 +40,7 @@ const ROOT_CATEGORIES = [
   },
   {
     key: "clientes", label: "Clientes", color: "bg-pink-500", light: "bg-pink-50", text: "text-pink-600", icon: Users, table: "clientes", nameField: "nombre",
-    extraSelect: "id, nombre, rfc, domicilio",
+    extraSelect: "id, created_at, nombre, rfc, domicilio",
     renderSub: c => `RFC: ${c.rfc || "—"}`,
     renderBadge: null,
     subfolders: [{ key: "general", label: "General" }]
@@ -51,7 +51,7 @@ const ROOT_CATEGORIES = [
   },
   {
     key: "proveedores", label: "Proveedores", color: "bg-teal-500", light: "bg-teal-50", text: "text-teal-600", icon: Truck, table: "proveedores", nameField: "razon_social",
-    extraSelect: "id, razon_social, rfc",
+    extraSelect: "id, created_at, razon_social, rfc",
     renderSub: p => `RFC: ${p.rfc || "—"}`,
     renderBadge: null,
     subfolders: [{ key: "general", label: "General" }]
@@ -494,7 +494,7 @@ export default function FileManager() {
       .from(cat.table)
       .select(selectStr)
       .not(cat.nameField, "is", null)
-      .order(cat.nameField);
+      .order('created_at', { ascending: false });
     setLoading(false);
 
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
