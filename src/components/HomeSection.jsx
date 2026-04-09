@@ -8,7 +8,6 @@ import {
     ArrowUpRight, Newspaper, Loader2, Ship, Plane,
     Truck, FileText, ChevronRight, Zap
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY || '';
@@ -178,6 +177,48 @@ function NewsCard({ article, index }) {
             </div>
             <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 shrink-0 mt-0.5 transition" />
         </motion.a>
+    );
+}
+
+// ─── CSS BAR CHART (sin dependencias externas) ───────────────────────────────
+function CssBarChart({ data }) {
+    const max = Math.max(...data.map(d => d.total), 1);
+    const [tooltip, setTooltip] = useState(null);
+    return (
+        <div className="relative h-48 flex flex-col justify-end gap-1">
+            {/* Bars */}
+            <div className="flex items-end gap-2 h-40 px-2">
+                {data.map((d, i) => {
+                    const pct = (d.total / max) * 100;
+                    const isLast = i === data.length - 1;
+                    return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1 relative"
+                            onMouseEnter={() => setTooltip(i)}
+                            onMouseLeave={() => setTooltip(null)}
+                        >
+                            {tooltip === i && (
+                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap z-10">
+                                    {d.total} ops
+                                </div>
+                            )}
+                            <motion.div
+                                initial={{ height: 0 }}
+                                animate={{ height: `${Math.max(pct, d.total > 0 ? 4 : 0)}%` }}
+                                transition={{ duration: 0.5, delay: i * 0.06 }}
+                                className="w-full rounded-t-lg"
+                                style={{ background: isLast ? '#3b82f6' : '#bfdbfe' }}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+            {/* Labels */}
+            <div className="flex gap-2 px-2">
+                {data.map((d, i) => (
+                    <div key={i} className="flex-1 text-center text-xs text-slate-400">{d.mes}</div>
+                ))}
+            </div>
+        </div>
     );
 }
 
@@ -370,22 +411,7 @@ export default function HomeSection() {
                             <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={180}>
-                            <BarChart data={barData} barCategoryGap="30%">
-                                <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={24} />
-                                <Tooltip
-                                    cursor={{ fill: '#f1f5f9' }}
-                                    contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }}
-                                    formatter={(v) => [v, 'Operaciones']}
-                                />
-                                <Bar dataKey="total" radius={[6, 6, 0, 0]}>
-                                    {barData.map((_, i) => (
-                                        <Cell key={i} fill={i === barData.length - 1 ? '#3b82f6' : '#bfdbfe'} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <CssBarChart data={barData} />
                     )}
                 </div>
 
