@@ -13,8 +13,17 @@ import {
     Upload,
     Download,
     Grid,
-    List
+    List,
+    FileDown,
+    ChevronDown,
+    Loader2 as Spin,
 } from 'lucide-react';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/lib/customSupabaseClient';
 import { uploadDocument, listDocuments, deleteDocument, downloadDocument, getSignedUrl, formatFileSize as docFmtSize, formatDate as docFmtDate, BUCKET } from '@/lib/documentService';
 import DocumentsTab from '@/components/DocumentsTab';
@@ -66,6 +75,7 @@ const DetailModal = ({
 
     const fileInputRef = useRef(null);
     const [subDialogOpen, setSubDialogOpen] = useState(false);
+    const [generando, setGenerando] = useState(false);
     const [subOperaciones, setSubOperaciones] = useState([]);
     const [operacionMadre, setOperacionMadre] = useState(null);
     const [proveedores, setProveedores] = useState([]);
@@ -369,6 +379,20 @@ const DetailModal = ({
         </div>
     )
 
+
+    const handleGenerarAviso = async (tipo) => {
+        if (!operacion) return;
+        setGenerando(tipo);
+        try {
+            const { generarAviso } = await import('@/lib/AvisoGenerator');
+            await generarAviso(operacion, tipo, proveedores);
+        } catch (err) {
+            console.error('Error generando aviso:', err);
+        } finally {
+            setGenerando(false);
+        }
+    };
+
     if (!operacion && loading) return null;
 
     return (
@@ -646,6 +670,38 @@ const DetailModal = ({
                             <FolderOpen className="w-4 h-4 mr-2" />
                             Archivos
                         </Button>
+
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                                    disabled={!!generando}
+                                >
+                                    {generando ? (
+                                        <Spin className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <FileDown className="w-4 h-4 mr-2" />
+                                    )}
+                                    Generar Aviso
+                                    <ChevronDown className="w-3.5 h-3.5 ml-1" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40">
+                                <DropdownMenuItem onClick={() => handleGenerarAviso('general')}>
+                                    <FileText className="w-4 h-4 mr-2 text-slate-500" />
+                                    General
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleGenerarAviso('arribo')}>
+                                    <FileText className="w-4 h-4 mr-2 text-blue-500" />
+                                    Arribo
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleGenerarAviso('zarpe')}>
+                                    <FileText className="w-4 h-4 mr-2 text-green-500" />
+                                    Zarpe
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
 
                         {!operacion?.operacion_madre_id && (
                             <Button
