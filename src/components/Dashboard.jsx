@@ -1,7 +1,8 @@
+import HomeSection from '@/components/HomeSection';
 import { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/toaster';
-import { Users, FileText, DollarSign, Receipt, Bell, Settings, Menu, ChevronRight, Briefcase, PieChart, Truck, FolderOpen, FileCheck } from 'lucide-react';
+import { Users, FileText, DollarSign, Receipt, Bell, Settings, Menu, ChevronRight, Briefcase, PieChart, Truck, FolderOpen, FileCheck, LayoutDashboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
@@ -47,7 +48,7 @@ function Dashboard() {
     };
 
   }, []);
-  const [activeView, setActiveView] = useState('operaciones');
+  const [activeView, setActiveView] = useState('inicio');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const navigate = useNavigate();
@@ -57,6 +58,15 @@ function Dashboard() {
   if (loading) return null;
 
   const menuItems = [
+
+    {
+      id: "inicio",
+      label: "Inicio",
+      icon: LayoutDashboard,  // agregar a imports de lucide-react
+      description: "Panel ejecutivo"
+    },
+
+
     can("operaciones.read") && {
       id: "operaciones",
       label: "Operaciones",
@@ -263,6 +273,7 @@ function Dashboard() {
                   {activeView === 'checklist-files' && <ChecklistSupabaseArchivos />}
                   {activeView === "roles" && <AdminRolesPanel />}
                   {activeView === 'users' && <UsersSection />}
+                  {activeView === 'inicio' && <HomeSection />}
                 </motion.div>
               </AnimatePresence>
             </div>
