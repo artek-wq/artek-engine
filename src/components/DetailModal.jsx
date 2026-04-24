@@ -18,12 +18,7 @@ import {
     ChevronDown,
     Loader2 as Spin,
 } from 'lucide-react';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+
 import { supabase } from '@/lib/customSupabaseClient';
 import { uploadDocument, listDocuments, deleteDocument, downloadDocument, getSignedUrl, formatFileSize as docFmtSize, formatDate as docFmtDate, BUCKET } from '@/lib/documentService';
 import DocumentsTab from '@/components/DocumentsTab';
@@ -76,6 +71,7 @@ const DetailModal = ({
     const fileInputRef = useRef(null);
     const [subDialogOpen, setSubDialogOpen] = useState(false);
     const [generando, setGenerando] = useState(false);
+    const [avisoMenuOpen, setAvisoMenuOpen] = useState(false);
     const [subOperaciones, setSubOperaciones] = useState([]);
     const [operacionMadre, setOperacionMadre] = useState(null);
     const [proveedores, setProveedores] = useState([]);
@@ -667,37 +663,41 @@ const DetailModal = ({
                             <span className="hidden sm:inline">Archivos</span>
                         </Button>
 
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                                    disabled={!!generando}
-                                >
-                                    {generando ? (
-                                        <Spin className="w-4 h-4 mr-2 animate-spin" />
-                                    ) : (
-                                        <FileDown className="w-4 h-4 mr-2" />
-                                    )}
-                                    Generar Aviso
-                                    <ChevronDown className="w-3.5 h-3.5 ml-1" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-40">
-                                <DropdownMenuItem onClick={() => handleGenerarAviso('general')}>
-                                    <FileText className="w-4 h-4 mr-2 text-slate-500" />
-                                    General
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleGenerarAviso('arribo')}>
-                                    <FileText className="w-4 h-4 mr-2 text-blue-500" />
-                                    Arribo
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleGenerarAviso('zarpe')}>
-                                    <FileText className="w-4 h-4 mr-2 text-green-500" />
-                                    Zarpe
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="relative">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                                disabled={!!generando}
+                                onClick={() => setAvisoMenuOpen(v => !v)}
+                                onBlur={() => setTimeout(() => setAvisoMenuOpen(false), 150)}
+                            >
+                                {generando ? (
+                                    <Spin className="w-4 h-4 sm:mr-2 animate-spin" />
+                                ) : (
+                                    <FileDown className="w-4 h-4 sm:mr-2" />
+                                )}
+                                <span className="hidden sm:inline">Generar Aviso</span>
+                                <ChevronDown className="w-3 h-3 ml-1" />
+                            </Button>
+                            {avisoMenuOpen && (
+                                <div className="absolute left-0 bottom-full mb-1 w-40 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1">
+                                    {[
+                                        { tipo: 'general', label: 'General', color: 'text-slate-500' },
+                                        { tipo: 'arribo', label: 'Arribo', color: 'text-blue-500' },
+                                        { tipo: 'zarpe', label: 'Zarpe', color: 'text-green-500' },
+                                    ].map(({ tipo, label, color }) => (
+                                        <button key={tipo}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+                                            onClick={() => { setAvisoMenuOpen(false); handleGenerarAviso(tipo); }}
+                                        >
+                                            <FileText className={`w-4 h-4 ${color}`} />
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
 
                         {!operacion?.operacion_madre_id && (
                             <Button

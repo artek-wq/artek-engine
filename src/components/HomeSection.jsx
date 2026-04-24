@@ -323,14 +323,18 @@ export default function HomeSection() {
         if (!NEWS_API_KEY) { setLoading(p => ({ ...p, news: false })); return; }
         setLoading(p => ({ ...p, news: true }));
         try {
+            // NewsAPI requires server-side requests on free plan
+            // Using a CORS proxy for browser compatibility
             const q = encodeURIComponent('comercio exterior mexico OR importacion exportacion OR aranceles');
-            const res = await fetch(
-                `https://newsapi.org/v2/everything?q=${q}&language=es&sortBy=publishedAt&pageSize=5&apiKey=${NEWS_API_KEY}`
-            );
+            const apiUrl = `https://newsapi.org/v2/everything?q=${q}&language=es&sortBy=publishedAt&pageSize=5&apiKey=${NEWS_API_KEY}`;
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+            const res = await fetch(proxyUrl);
+            if (!res.ok) throw new Error('fetch failed');
             const json = await res.json();
             setNoticias((json.articles || []).filter(a => a.title && !a.title.includes('[Removed]')));
         } catch {
-            setNoticias([]);
+            // Silently fail - show upgrade message
+            setNoticias([{ _error: true }]);
         }
         setLoading(p => ({ ...p, news: false }));
     }, []);

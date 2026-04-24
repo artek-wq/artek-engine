@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/customSupabaseClient';
-import { createEntityFolders } from '@/lib/documentService';
 import { STATUS, STATUS_ESPECIFICO, getStatusGeneral } from '@/constants/status';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -251,9 +250,6 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
           title: 'Operación creada',
           description: `Referencia: ${data.referencia}`
         });
-
-        // Crear carpetas automáticas en Storage: General, Pagos, Facturación
-        createEntityFolders('operacion', result.id, ['general', 'pagos', 'facturacion']);
       }
 
       /* =========================
@@ -302,8 +298,8 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="bg-gradient-to-r from-slate-50 to-white border-b px-8 py-6">
+      <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden flex flex-col">
+        <DialogHeader className="bg-gradient-to-r from-slate-50 to-white border-b px-4 sm:px-8 py-4 sm:py-6">
 
           <div className="flex justify-between items-start">
 
@@ -336,9 +332,9 @@ function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6">
           <form id="operacion-form" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
 
               {/* FILA 1 */}
               <div>
