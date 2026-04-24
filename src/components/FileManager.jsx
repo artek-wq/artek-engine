@@ -16,11 +16,6 @@ import {
   getSignedUrl as docGetSignedUrl, renameDocument, formatFileSize, formatDate, BUCKET,
 } from "@/lib/documentService";
 import FileUploadDialog from "@/components/FileUploadDialog";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
 // Storage folder names match the category keys (plural)
@@ -126,33 +121,47 @@ function SidebarBtn({ label, icon: Icon, active, onClick, iconColor = "text-slat
 }
 
 function FileActionMenu({ file, onAction }) {
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [open]);
+  const items = [
+    { action: 'preview', icon: ZoomIn, label: 'Vista previa', cls: '' },
+    { action: 'download', icon: Download, label: 'Descargar', cls: '' },
+    { action: 'copyLink', icon: Link, label: 'Copiar enlace', cls: '' },
+    { action: 'rename', icon: Pencil, label: 'Renombrar', cls: '' },
+    { action: 'delete', icon: Trash2, label: 'Eliminar', cls: 'text-red-600' },
+  ];
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition">
-          <MoreVertical className="w-4 h-4" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onClick={() => onAction("preview", file)}>
-          <ZoomIn className="w-4 h-4 mr-2 text-slate-500" />Vista previa
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("download", file)}>
-          <Download className="w-4 h-4 mr-2 text-slate-500" />Descargar
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onAction("copyLink", file)}>
-          <Link className="w-4 h-4 mr-2 text-slate-500" />Copiar enlace
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onAction("rename", file)}>
-          <Pencil className="w-4 h-4 mr-2 text-slate-500" />Renombrar
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onAction("delete", file)} className="text-red-600 focus:text-red-600">
-          <Trash2 className="w-4 h-4 mr-2" />Eliminar
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="relative">
+      <button
+        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+      >
+        <MoreVertical className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-7 z-50 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-44"
+          onClick={(e) => e.stopPropagation()}>
+          {items.map(({ action, icon: Icon, label, cls }, i) => (
+            <React.Fragment key={action}>
+              {(action === 'rename' || action === 'delete') && i > 0 && (
+                <div className="h-px bg-slate-100 my-1" />
+              )}
+              <button
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 transition ${cls}`}
+                onClick={() => { setOpen(false); onAction(action, file); }}
+              >
+                <Icon className="w-4 h-4" />{label}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
