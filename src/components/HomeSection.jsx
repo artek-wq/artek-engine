@@ -66,7 +66,7 @@ function KpiCard({ label, value, sub, color, icon: Icon, loading }) {
         <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+            className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow"
         >
             <div className="flex items-start justify-between">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
@@ -128,7 +128,7 @@ function TipoCambio({ rates, loading }) {
         { from: 'EUR', label: 'Euro', symbol: '€', color: 'text-blue-600', bg: 'bg-blue-50' },
     ];
     return (
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
             {pairs.map(({ from, label, symbol, color, bg }) => (
                 <div key={from} className={`flex-1 rounded-xl p-3 ${bg}`}>
                     <div className="flex items-center gap-1.5">
@@ -386,7 +386,7 @@ export default function HomeSection() {
             </motion.div>
 
             {/* ── KPIs ────────────────────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                 <KpiCard label="En proceso" value={kpis?.enProceso ?? '—'} icon={Package} color="bg-blue-500" loading={loading.kpis} />
                 <KpiCard label="ETA esta semana" value={kpis?.etaSemana ?? '—'} icon={Clock} color="bg-violet-500" loading={loading.kpis} />
                 <KpiCard label="Incidencias" value={kpis?.incidencias ?? '—'} icon={AlertTriangle} color="bg-red-500" loading={loading.kpis} sub={kpis?.incidencias > 0 ? 'Atención' : null} />
@@ -395,7 +395,7 @@ export default function HomeSection() {
             </div>
 
             {/* ── ROW 2: Gráfica + Alertas ─────────────────────────────────────── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
 
                 {/* Gráfica de barras */}
                 <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -443,7 +443,7 @@ export default function HomeSection() {
             </div>
 
             {/* ── ROW 3: Actividad + Tipo de cambio + Noticias ─────────────────── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
 
                 {/* Actividad reciente */}
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">

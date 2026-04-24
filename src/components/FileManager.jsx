@@ -678,18 +678,39 @@ export default function FileManager() {
   const showSubfolderTabs = level === "files" && !isSearchMode && catConfig;
 
   // ─── RENDER ──────────────────────────────────────────────────────
+  // Mobile: track which panel is visible (sidebar | main)
+  const [mobilePanel, setMobilePanel] = useState('sidebar'); // 'sidebar' | 'main'
+
+  // When entering an entity on mobile, show main panel
+  const handleMobileEntitySelect = async (entity) => {
+    setMobilePanel('main');
+    setActiveSubfolder('general');
+    const cacheKey = `${category}:${entity.id}`;
+    if (!_syncedEntities.has(cacheKey)) {
+      _syncedEntities.add(cacheKey);
+      const ETMAP2 = { operaciones: 'operacion', clientes: 'cliente', proveedores: 'proveedor', pagos: 'pago', ventas: 'ventas', finanzas: 'finanzas' };
+      const et2 = ETMAP2[category] || category;
+      const sfs2 = catConfig?.subfolders?.map(s => s.key) || ['general'];
+      const { syncEntityFromStorage } = await import('@/lib/documentService');
+      syncEntityFromStorage(et2, entity.id, sfs2).then(({ newFiles }) => {
+        if (newFiles > 0) loadFiles(entity, 'general', category);
+      });
+    }
+    loadFiles(entity, 'general', category);
+  };
+
   return (
     <div className="flex gap-5 h-[calc(100vh-200px)] min-h-[520px]">
 
       {/* SIDEBAR */}
-      <aside className="w-60 shrink-0 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-4 overflow-y-auto">
+      <aside className={`w-60 shrink-0 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-4 overflow-y-auto ${mobilePanel === "main" ? "hidden lg:flex" : "flex w-full lg:w-60"}`}>
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-1">Accesos Rápidos</p>
           <div className="space-y-0.5">
             <SidebarBtn label="Inicio (Root)" icon={Home} active={level === "root" && !isSearchMode} onClick={goRoot} />
             {ROOT_CATEGORIES.map(cat => (
               <SidebarBtn key={cat.key} label={cat.label} icon={cat.icon} iconColor={cat.text}
-                active={category === cat.key && !isSearchMode} onClick={() => handleCategoryClick(cat)} />
+                active={category === cat.key && !isSearchMode} onClick={() => { handleCategoryClick(cat); if (window.innerWidth < 1024) setMobilePanel("main"); }} />
             ))}
           </div>
         </div>
@@ -704,7 +725,15 @@ export default function FileManager() {
       </aside>
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-hidden">
+      <div className={`flex-1 flex-col gap-3 min-w-0 overflow-hidden ${mobilePanel === "sidebar" ? "hidden lg:flex" : "flex"}`}>
+        {/* Mobile back button */}
+        <button
+          className="flex lg:hidden items-center gap-2 text-sm text-blue-600 font-medium mb-1"
+          onClick={() => setMobilePanel('sidebar')}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          Categorías
+        </button>
 
         {/* FIX: Buscador SIEMPRE en la primera posición, en todos los niveles */}
         <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center gap-3 shrink-0">

@@ -1,4 +1,3 @@
-import HomeSection from '@/components/HomeSection';
 import { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/toaster';
@@ -19,6 +18,7 @@ import AdminModal from '@/components/AdminModal';
 import { usePermissions } from "@/hooks/usePermissions";
 import AdminRolesPanel from "@/components/AdminRolesPanel";
 import UsersSection from '@/components/UsersSection';
+import HomeSection from '@/components/HomeSection';
 
 function Dashboard() {
   useEffect(() => {
@@ -49,29 +49,38 @@ function Dashboard() {
 
   }, []);
   const [activeView, setActiveView] = useState('inicio');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { can, loading } = usePermissions();
 
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (!mobile) setIsSidebarOpen(true);   // always open on desktop
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   if (loading) return null;
 
   const menuItems = [
-
     {
       id: "inicio",
       label: "Inicio",
-      icon: LayoutDashboard,  // agregar a imports de lucide-react
+      icon: LayoutDashboard,
       description: "Panel ejecutivo"
     },
-
 
     can("operaciones.read") && {
       id: "operaciones",
       label: "Operaciones",
       icon: FileText,
-      description: "Logística y seguimiento"
+      description: "Log\u00edstica y seguimiento"
     },
 
     can("pagos.read") && {
@@ -82,7 +91,7 @@ function Dashboard() {
 
     can("facturas.read") && {
       id: "facturas",
-      label: "Facturación",
+      label: "Facturaci\u00f3n",
       icon: Receipt
     },
 
@@ -108,12 +117,12 @@ function Dashboard() {
       id: "roles",
       label: "Permisos",
       icon: Settings,
-      description: "Gestión de roles y permisos"
+      description: "Gesti\u00f3n de roles y permisos"
     },
 
     can("archivos.read") && {
       id: "archivos",
-      label: "Gestión de Archivos",
+      label: "Gesti\u00f3n de Archivos",
       icon: FolderOpen,
     }
 
@@ -125,16 +134,26 @@ function Dashboard() {
     <>
       <Helmet>
         <title>Dashboard - Artek Engine</title>
-        <meta name="description" content="Panel de administración Artek" />
+        <meta name="description" content="Panel de administraci\u00f3n Artek" />
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 flex overflow-hidden font-sans">
 
         {/* Sidebar Navigation */}
+        {/* Mobile overlay backdrop */}
+        {isMobile && isSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
         <aside className={`
-            fixed inset-y-0 left-0 z-50 bg-slate-900 text-white transition-all duration-300 ease-in-out shadow-2xl
-            ${isSidebarOpen ? 'w-64' : 'w-20'} 
-            flex flex-col
+            fixed inset-y-0 left-0 z-50 bg-slate-900 text-white transition-all duration-300 ease-in-out shadow-2xl flex flex-col
+            ${isMobile
+            ? (isSidebarOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full')
+            : (isSidebarOpen ? 'w-64' : 'w-20')
+          }
           `}>
           {/* Logo Area */}
           <div className="h-20 flex items-center justify-center border-b border-slate-800/50 p-4">
@@ -154,7 +173,7 @@ function Dashboard() {
             {menuItems.map(item => (
               <button
                 key={item.id}
-                onClick={() => setActiveView(item.id)}
+                onClick={() => { setActiveView(item.id); if (isMobile) setIsSidebarOpen(false); }}
                 className={`
                   w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group
                   ${activeView === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
@@ -191,7 +210,7 @@ function Dashboard() {
                   {user?.email?.charAt(0).toUpperCase()}
                 </div>
 
-                {isSidebarOpen && (
+                {(isSidebarOpen || isMobile) && (
                   <div className="text-left overflow-hidden">
                     <p className="text-sm font-medium text-white truncate">
                       {user?.email?.split('@')[0]}
@@ -209,7 +228,7 @@ function Dashboard() {
         {/* Main Content Area */}
         <main className={`
             flex-1 transition-all duration-300 ease-in-out flex flex-col h-screen overflow-hidden
-            ${isSidebarOpen ? 'ml-64' : 'ml-20'}
+            ${isMobile ? 'ml-0' : (isSidebarOpen ? 'ml-64' : 'ml-20')}
           `}>
           {/* Top Header */}
           <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40 shadow-sm">
@@ -229,7 +248,7 @@ function Dashboard() {
               <button
                 onClick={() => setAdminModalOpen(true)}
                 className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
-                title="Configuración Admin"
+                title="Configuraci\u00f3n Admin"
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -262,6 +281,7 @@ function Dashboard() {
                   transition={{ duration: 0.2 }}
                   className="min-h-[calc(100vh-200px)]"
                 >
+                  {activeView === 'inicio' && <HomeSection />}
                   {activeView === 'clientes' && <ClientesSection />}
                   {activeView === 'operaciones' && <OperacionesSection />}
                   {activeView === 'pagos' && <PagosSection />}
@@ -273,7 +293,6 @@ function Dashboard() {
                   {activeView === 'checklist-files' && <ChecklistSupabaseArchivos />}
                   {activeView === "roles" && <AdminRolesPanel />}
                   {activeView === 'users' && <UsersSection />}
-                  {activeView === 'inicio' && <HomeSection />}
                 </motion.div>
               </AnimatePresence>
             </div>

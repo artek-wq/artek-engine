@@ -1,619 +1,690 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Plus, MoreHorizontal, Ship, Plane, Truck, FileText } from 'lucide-react';
-import OperacionDialog from '@/components/OperacionDialog';
-import SubOperacionDialog from '@/components/SubOperacionDialog';
-import DetailModal from '@/components/DetailModal';
-import { useToast } from '@/components/ui/use-toast';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/customSupabaseClient';
-import { STATUS, STATUS_STYLES, STATUS_ESPECIFICO_STYLES } from '@/constants/status';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { STATUS, STATUS_ESPECIFICO, getStatusGeneral } from '@/constants/status';
+import { useToast } from '@/components/ui/use-toast';
+import { Loader2 } from 'lucide-react';
 
-function OperacionesSection() {
+const TIPOS_OPERACION = [
+  { value: 'M', label: 'Marítimo' },
+  { value: 'A', label: 'Aéreo' },
+  { value: 'T', label: 'Terrestre' },
+  { value: 'D', label: 'Despacho Aduanal' },
+  { value: 'P', label: 'Paquetería' }
+];
 
-  const [operaciones, setOperaciones] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedOperacion, setSelectedOperacion] = useState(null);
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [expanded, setExpanded] = useState({});
-  const [subDialogOpen, setSubDialogOpen] = useState(false);
-  const [parentForSub, setParentForSub] = useState(null);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [operacionToDelete, setOperacionToDelete] = useState(null);
+function OperacionDialog({ open, onOpenChange, onSuccess, operacion }) {
 
   const { toast } = useToast();
+  const isEditMode = !!operacion;
+
+  const [clientes, setClientes] = useState([]);
+  const [clienteSearch, setClienteSearch] = useState('');
+  const [proveedores, setProveedores] = useState([]);
+  const [proveedorSearch, setProveedorSearch] = useState('');
+  const [selectedProveedores, setSelectedProveedores] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    tipo_operacion: '',
+    cliente_id: '',
+    status: 'Pendiente',
+    status_especifico: 'Nuevo',
+
+    shipper: '',
+    incoterms: '',
+
+    origen: '',
+    destino: '',
+
+    etd: '',
+    eta: '',
+
+    mbl: '',
+    hbl: '',
+    contenedor: '',
+
+    bultos: '',
+    cbm: '',
+    peso: '',
+    aseguradora: '',
+
+    notas: ''
+  });
+
+  /* =========================
+     CARGA INICIAL
+  ========================== */
 
   useEffect(() => {
-    fetchOperaciones();
-  }, []);
+    if (open) {
+      fetchClientes();
+      fetchProveedores();
+    }
+  }, [open]);
 
   useEffect(() => {
 
-    const handleOpenOperacion = (event) => {
-
-      const operacionId = event.detail
-
-      setSelectedOperacion({
-        id: operacionId
-      })
-
-      setDetailModalOpen(true)
-
+    if (isEditMode && open) {
+      loadOperacionData();
     }
 
-    window.addEventListener(
-      "openOperacionFromCliente",
-      handleOpenOperacion
-    )
+    if (!isEditMode && open) {
+      resetForm();
+    }
 
-    return () => {
+  }, [operacion, open]);
 
-      window.removeEventListener(
-        "openOperacionFromCliente",
-        handleOpenOperacion
+  const fetchClientes = async () => {
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, nombre')
+      .order('nombre');
+
+    setClientes(data || []);
+  };
+
+  const clientesFiltrados =
+    clienteSearch && !formData.cliente_id
+      ? clientes.filter(c =>
+        c.nombre.toLowerCase().includes(clienteSearch.toLowerCase())
       )
+      : [];
 
-    }
+  const fetchProveedores = async () => {
+    const { data } = await supabase
+      .from('proveedores')
+      .select('id, razon_social')
+      .order('razon_social');
 
-  }, [])
+    setProveedores(data || []);
+  };
 
-  const fetchOperaciones = async () => {
-    const { data, error } = await supabase
-      .from('operaciones')
-      .select(`
-  *,
-  clientes ( nombre ),
-  operacion_proveedores (
-    proveedores (
-      razon_social
-    )
-  )
-`)
-      .order('created_at', { ascending: false });
+  const proveedoresFiltrados = proveedores.filter(p =>
+    p.razon_social.toLowerCase().includes(proveedorSearch.toLowerCase())
+  );
 
-    if (error) {
+  const loadOperacionData = async () => {
+
+    setFormData({
+      tipo_operacion: operacion.tipo_operacion || '',
+      cliente_id: operacion.cliente_id || '',
+      status: operacion.status || 'Pendiente',
+      status_especifico: operacion.status_especifico || 'Nuevo',
+
+      shipper: operacion.shipper || '',
+      incoterms: operacion.incoterms || '',
+
+      origen: operacion.origen || '',
+      destino: operacion.destino || '',
+
+      etd: operacion.etd || '',
+      eta: operacion.eta || '',
+
+      mbl: operacion.mbl || '',
+      hbl: operacion.hbl || '',
+      contenedor: operacion.contenedor || '',
+
+      bultos: operacion.bultos || '',
+      cbm: operacion.cbm || '',
+      peso: operacion.peso || '',
+      aseguradora: operacion.aseguradora || '',
+      equipo: operacion.equipo || '',
+
+      notas: operacion.notas || ''
+    });
+
+    const cliente = clientes.find(c => String(c.id) === String(operacion.cliente_id));
+    if (cliente) setClienteSearch(cliente.nombre);
+
+    // 🔥 Cargar proveedores vinculados
+    const { data: relaciones } = await supabase
+      .from('operacion_proveedores')
+      .select('proveedor_id')
+      .eq('operacion_id', operacion.id);
+
+    setSelectedProveedores(relaciones?.map(r => r.proveedor_id) || []);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      tipo_operacion: '',
+      cliente_id: '',
+      status: 'Pendiente',
+
+      shipper: '',
+      incoterms: '',
+
+      origen: '',
+      destino: '',
+
+      etd: '',
+      eta: '',
+
+      mbl: '',
+      hbl: '',
+      contenedor: '',
+
+      bultos: '',
+      cbm: '',
+      peso: '',
+      aseguradora: '',
+      equipo: '',
+
+      notas: ''
+    });
+
+    setSelectedProveedores([]);
+  };
+  /* ---------------- SUBMIT ---------------- */
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // 🔒 Validación obligatorios
+    if (!formData.tipo_operacion || !formData.cliente_id) {
       toast({
-        title: "Error cargando operaciones",
-        description: error.message,
-        variant: "destructive"
+        title: 'Error',
+        description: 'Tipo de operación y Cliente son obligatorios.',
+        variant: 'destructive'
       });
       return;
     }
 
-    const allOps = data || [];
-
-    const madres = allOps.filter(op => !op.operacion_madre_id);
-    const subs = allOps.filter(op => op.operacion_madre_id);
-
-    const tree = madres.map(madre => {
-
-      const proveedores =
-        madre.operacion_proveedores
-          ?.map(p => p.proveedores?.razon_social)
-          .filter(Boolean) || [];
-
-      return {
-        ...madre,
-        proveedores,
-        children: subs.filter(sub => sub.operacion_madre_id === madre.id)
-      };
-    });
-
-    setOperaciones([...tree]);
-  };
-
-  const handleCardClick = (operacion) => {
-    setSelectedOperacion(operacion);
-    setDetailModalOpen(true);
-  };
-
-  const toggleExpand = (id) => {
-    setExpanded(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
-
-  const handleDelete = (operacion) => {
-    // 🔒 Bloquear eliminación de madre con sub-operaciones activas
-    if (!operacion.operacion_madre_id && operacion.children?.length > 0) {
-      const activeSubs = operacion.children.filter(
-        sub => sub.status !== STATUS.COMPLETADA && sub.status !== STATUS.CANCELADA
-      );
-      if (activeSubs.length > 0) {
-        toast({
-          title: "No se puede eliminar",
-          description: "Existen sub-operaciones activas.",
-          variant: "destructive"
-        });
-        return;
-      }
-    }
-    setOperacionToDelete(operacion);
-    setDeleteConfirmOpen(true);
-  };
-
-  const handleDeleteConfirmed = async () => {
-    if (!operacionToDelete) return;
-    const { error } = await supabase
-      .from('operaciones')
-      .delete()
-      .eq('id', operacionToDelete.id);
-
-    if (error) {
+    // 🔒 Validación coherencia fechas
+    if (formData.etd && formData.eta && formData.eta < formData.etd) {
       toast({
-        title: "Error al eliminar",
-        description: error.message,
-        variant: "destructive"
+        title: 'Error',
+        description: 'ETA no puede ser menor que ETD.',
+        variant: 'destructive'
       });
-    } else {
-      toast({ title: "Operación eliminada", description: operacionToDelete.referencia });
-      fetchOperaciones();
+      return;
     }
-    setOperacionToDelete(null);
-    setDeleteConfirmOpen(false);
-  };
 
-  const getTypeIcon = (type) => {
-    switch (type) {
-      case 'A': return <Plane className="w-6 h-6" />;
-      case 'T': return <Truck className="w-6 h-6" />;
-      case 'D': return <FileText className="w-6 h-6" />;
-      case 'P': return <FileText className="w-6 h-6" />;
-      case 'M':
-      default: return <Ship className="w-6 h-6" />;
-    }
-  };
+    setLoading(true);
 
-  const normalizeText = (text) => {
-    return String(text || '')
-      .toLowerCase()
-      .normalize("NFD")                // separa acentos
-      .replace(/[\u0300-\u036f]/g, "") // elimina acentos
-      .replace(/[^\w\s]/gi, "")        // elimina puntuación
-      .trim();
-  };
-  const matchesSearch = (obj) => {
+    try {
 
-    const search = normalizeText(searchTerm);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sesión inválida');
 
-    if (!search) return true;
+      let result;
 
-    const valuesToSearch = [];
+      if (isEditMode) {
 
-    // Campos directos
-    Object.entries(obj || {}).forEach(([key, value]) => {
+        const { data, error } = await supabase
+          .from('operaciones')
+          .update({
+            ...formData
+          })
+          .eq('id', operacion.id)
+          .select()
+          .single();
 
-      if (key === "children") return;
+        if (error) throw error;
 
-      if (typeof value === "object" && value !== null) {
-        Object.values(value).forEach(v => {
-          valuesToSearch.push(v);
+        result = data;
+
+        toast({
+          title: 'Operación actualizada correctamente'
         });
-      } else {
-        valuesToSearch.push(value);
-      }
-    });
 
-    return valuesToSearch.some(value =>
-      normalizeText(value).includes(search)
-    );
+      } else {
+
+        const { data, error } = await supabase
+          .from('operaciones')
+          .insert({
+            ...formData,
+            user_id: user.id
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        result = data;
+
+        toast({
+          title: 'Operación creada',
+          description: `Referencia: ${data.referencia}`
+        });
+      }
+
+      /* =========================
+         🔥 SINCRONIZAR PROVEEDORES
+      ========================== */
+
+      // Eliminar relaciones anteriores
+      await supabase
+        .from('operacion_proveedores')
+        .delete()
+        .eq('operacion_id', result.id);
+
+      // Insertar nuevas relaciones si existen
+      if (selectedProveedores.length > 0) {
+
+        const inserts = selectedProveedores.map(proveedorId => ({
+          operacion_id: result.id,
+          proveedor_id: proveedorId
+        }));
+
+        const { error: proveedoresError } = await supabase
+          .from('operacion_proveedores')
+          .insert(inserts);
+
+        if (proveedoresError) throw proveedoresError;
+      }
+
+      // 🔥 Notificar al padre correctamente
+      onSuccess?.(result);
+
+      onOpenChange(false);
+      resetForm();
+
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err.message,
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  /* =========================
-     MÉTRICAS DASHBOARD
-  ========================= */
-
-  const totalOperaciones = operaciones.length;
-
-  const enProceso = operaciones.filter(
-    op => op.status === "En Proceso"
-  ).length;
-
-  const pendientes = operaciones.filter(
-    op => op.status === "Pendiente"
-  ).length;
-
-  const completadas = operaciones.filter(
-    op => op.status === "Completada"
-  ).length;
-
-  const filteredOperaciones = operaciones
-    .map(madre => {
-
-      const madreMatch = matchesSearch(madre);
-
-      const filteredChildren = madre.children?.filter(sub =>
-        matchesSearch(sub)
-      );
-
-      if (madreMatch) return madre;
-
-      if (filteredChildren?.length > 0) {
-        return {
-          ...madre,
-          children: filteredChildren
-        };
-      }
-
-      return null;
-    })
-    .filter(Boolean);
+  /* ---------------- UI ---------------- */
 
   return (
-    <div className="space-y-6">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden flex flex-col">
+        <DialogHeader className="bg-gradient-to-r from-slate-50 to-white border-b px-4 sm:px-8 py-4 sm:py-6">
 
-      {/* HEADER */}
-      <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex justify-between items-start">
 
+            <div>
+              <DialogTitle className="text-2xl font-bold tracking-tight">
+                {isEditMode
+                  ? `Editar ${operacion?.referencia || ''}`
+                  : 'Nueva Operación'}
+              </DialogTitle>
 
-        {/* KPI DASHBOARD */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 mb-6">
+              {operacion?.clientes?.nombre && (
+                <div className="text-sm text-slate-500 mt-1">
+                  {operacion.clientes.nombre}
+                </div>
+              )}
+            </div>
 
+            <div className="flex flex-col items-end gap-1">
+              <div className="px-3 py-1 text-xs rounded-full bg-slate-100 text-slate-600 font-medium">
+                {formData.status}
+              </div>
+              {formData.status_especifico && (
+                <div className="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-600">
+                  {formData.status_especifico}
+                </div>
+              )}
+            </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="text-xs text-slate-500">Operaciones</div>
-            <div className="text-3xl font-bold mt-1">{totalOperaciones}</div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="text-xs text-slate-500">En proceso</div>
-            <div className="text-3xl font-bold text-blue-600 mt-1">{enProceso}</div>
-          </div>
+        </DialogHeader>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="text-xs text-slate-500">Pendientes</div>
-            <div className="text-3xl font-bold text-amber-600 mt-1">{pendientes}</div>
-          </div>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6">
+          <form id="operacion-form" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="text-xs text-slate-500">Completadas</div>
-            <div className="text-3xl font-bold text-green-600 mt-1">{completadas}</div>
-          </div>
+              {/* FILA 1 */}
+              <div>
+                <Label>Tipo de Operación *</Label>
+                <select
+                  required
+                  value={formData.tipo_operacion}
+                  onChange={(e) =>
+                    setFormData({ ...formData, tipo_operacion: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                >
+                  <option value="">Seleccionar</option>
+                  {TIPOS_OPERACION.map(t => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <Label>Cliente *</Label>
+
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={clienteSearch}
+                  onChange={(e) => setClienteSearch(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+
+                <div className="border rounded-lg max-h-32 overflow-y-auto mt-1">
+
+                  {clientesFiltrados.map(c => (
+
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        setFormData({ ...formData, cliente_id: c.id });
+                        setClienteSearch(c.nombre);
+                      }}
+                      className="px-3 py-2 hover:bg-slate-100 cursor-pointer text-sm"
+                    >
+                      {c.nombre}
+                    </div>
+
+                  ))}
+
+                </div>
+
+              </div>
+
+              {/* FILA 2 */}
+              <div>
+                <Label>Status específico *</Label>
+                <select
+                  value={formData.status_especifico}
+                  onChange={(e) => {
+                    const especifico = e.target.value;
+                    const general = getStatusGeneral(especifico);
+                    setFormData({ ...formData, status_especifico: especifico, status: general });
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                >
+                  {STATUS_ESPECIFICO.map(s => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">
+                  Status general: <span className="font-medium text-slate-600">{formData.status}</span>
+                </p>
+              </div>
+
+              <div>
+                <Label>Shipper</Label>
+                <input
+                  value={formData.shipper}
+                  onChange={(e) =>
+                    setFormData({ ...formData, shipper: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>MBL</Label>
+                <input
+                  value={formData.mbl}
+                  onChange={(e) =>
+                    setFormData({ ...formData, mbl: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              {/* FILA 3 */}
+              <div>
+                <Label>HBL</Label>
+                <input
+                  value={formData.hbl}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hbl: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Buque / No. de Viaje</Label>
+                <input
+                  value={formData.buque_viaje}
+                  onChange={(e) =>
+                    setFormData({ ...formData, buque_viaje: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Contenedor</Label>
+                <input
+                  value={formData.contenedor}
+                  onChange={(e) =>
+                    setFormData({ ...formData, contenedor: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              {/* FILA 4 */}
+              <div>
+                <Label>Origen</Label>
+                <input
+                  value={formData.origen}
+                  onChange={(e) =>
+                    setFormData({ ...formData, origen: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Destino</Label>
+                <input
+                  value={formData.destino}
+                  onChange={(e) =>
+                    setFormData({ ...formData, destino: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>ETD</Label>
+                <input
+                  type="date"
+                  value={formData.etd}
+                  onChange={(e) =>
+                    setFormData({ ...formData, etd: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              {/* FILA 5 */}
+              <div>
+                <Label>ETA</Label>
+                <input
+                  type="date"
+                  value={formData.eta}
+                  onChange={(e) =>
+                    setFormData({ ...formData, eta: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Bultos</Label>
+                <input
+                  type="number"
+                  value={formData.bultos}
+                  onChange={(e) =>
+                    setFormData({ ...formData, bultos: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>CBM</Label>
+                <input
+                  type="number"
+                  value={formData.cbm}
+                  onChange={(e) =>
+                    setFormData({ ...formData, cbm: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              {/* FILA 6 */}
+              <div>
+                <Label htmlFor="peso">Peso</Label>
+
+                <input
+                  id="peso"
+                  type="text"
+                  value={formData.peso}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      peso: e.target.value
+                    })
+                  }
+                  placeholder="Ej: 1200 kg / 2.5 tons"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Incoterms</Label>
+                <input
+                  value={formData.incoterms}
+                  onChange={(e) =>
+                    setFormData({ ...formData, incoterms: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Aseguradora</Label>
+                <input
+                  value={formData.aseguradora}
+                  onChange={(e) =>
+                    setFormData({ ...formData, aseguradora: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Equipo</Label>
+                <input
+                  value={formData.equipo}
+                  onChange={(e) =>
+                    setFormData({ ...formData, equipo: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+
+              {/* PROVEEDORES */}
+              <div className="md:col-span-3">
+                <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                  Proveedores
+                </Label>
+
+                <input
+                  type="text"
+                  placeholder="Buscar proveedor..."
+                  value={proveedorSearch}
+                  onChange={(e) => setProveedorSearch(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg mb-2"
+                />
+
+                <div className="border border-slate-200 rounded-lg p-3 mt-1 max-h-40 overflow-y-auto space-y-2 bg-white">
+
+                  {proveedores.length === 0 && (
+                    <div className="text-xs text-slate-400">
+                      No hay proveedores registrados
+                    </div>
+                  )}
+
+                  {proveedoresFiltrados.map(p => (
+
+                    <label
+                      key={p.id}
+                      className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 px-2 py-1 rounded"
+                    >
+
+                      <input
+                        type="checkbox"
+                        checked={selectedProveedores.includes(p.id)}
+                        onChange={(e) => {
+
+                          if (e.target.checked) {
+                            setSelectedProveedores(prev => [...prev, p.id]);
+                          } else {
+                            setSelectedProveedores(prev =>
+                              prev.filter(id => id !== p.id)
+                            );
+                          }
+
+                        }}
+                      />
+
+                      {p.razon_social}
+
+                    </label>
+
+                  ))}
+
+                </div>
+              </div>
+
+              {/* NOTAS FULL WIDTH */}
+              <div className="md:col-span-3">
+                <Label>Notas</Label>
+                <textarea
+                  value={formData.notas}
+                  onChange={(e) =>
+                    setFormData({ ...formData, notas: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                  rows={3}
+                />
+              </div>
+
+            </div>
+          </form>
+        </div>
+        <div className="border-t bg-white px-8 py-4 flex justify-end gap-3 sticky bottom-0">
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            type="submit"
+            form="operacion-form"
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {loading ? 'Guardando...' : isEditMode ? 'Actualizar' : 'Crear'}
+          </Button>
 
         </div>
 
-        <div className="flex items-center gap-3"></div>
-
-        <input
-          type="text"
-          placeholder="Buscar por referencia o cliente..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="border p-2 rounded-lg w-80"
-        />
-
-        <Button
-          onClick={() => {
-            setSelectedOperacion(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nueva Operación
-        </Button>
-      </div>
-
-      {/* GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
-
-        <AnimatePresence>
-
-          {filteredOperaciones.map((madre) => (
-
-            <React.Fragment key={madre.id}>
-
-              {/* CARD MADRE */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                onClick={() => handleCardClick(madre)}
-                className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md cursor-pointer transition"
-              >
-                <div className="flex justify-between items-start">
-
-                  <div className="flex gap-4 items-start">
-                    <div className="w-11 h-11 bg-blue-50 rounded-xl flex items-center justify-center text-blue-700">
-                      {getTypeIcon(madre.tipo_operacion)}
-                    </div>
-
-                    <div className="flex flex-col gap-2 flex-1">
-
-                      {/* REFERENCIA */}
-                      <div className="text-lg font-semibold tracking-tight">
-                        {madre.referencia}
-                      </div>
-
-                      {/* CLIENTE */}
-                      <div className="text-sm text-slate-600 font-medium">
-                        {madre.clientes?.nombre || '-'}
-                      </div>
-
-                      {/* RUTA */}
-                      <div className="text-xs text-slate-400">
-                        {madre.origen} → {madre.destino}
-                      </div>
-
-                      {/* DATOS LOGÍSTICOS */}
-                      {(madre.mbl || madre.contenedor) && (
-                        <div className="text-xs text-slate-500 mt-1 flex gap-4">
-                          {madre.mbl && (
-                            <span>
-                              <span className="font-medium">MBL:</span> {madre.mbl}
-                            </span>
-                          )}
-
-                          {madre.contenedor && (
-                            <span>
-                              <span className="font-medium">Cont:</span> {madre.contenedor}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* PROVEEDORES */}
-                      {madre.operacion_proveedores?.length > 0 && (
-                        <div className="flex flex-col gap-1 mt-2">
-                          {madre.operacion_proveedores.map(rel => (
-                            <div
-                              key={rel.proveedores.id}
-                              className="flex items-center gap-2 text-xs text-slate-600"
-                            >
-                              <span className="text-slate-400">🏢</span>
-                              <span>{rel.proveedores.razon_social}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[madre.status] || 'bg-slate-100 text-slate-600'}`}>
-                        {madre.status}
-                      </span>
-                      {madre.status_especifico && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_ESPECIFICO_STYLES[madre.status_especifico] || 'bg-slate-50 text-slate-500'}`}>
-                          {madre.status_especifico}
-                        </span>
-                      )}
-                    </div>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => e.stopPropagation()}
-                          className="h-8 w-8"
-                        >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-
-                      <DropdownMenuContent align="end">
-
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedOperacion(madre);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          Editar
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(madre);
-                          }}
-                        >
-                          Eliminar
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setParentForSub(madre);
-                            setSubDialogOpen(true);
-                          }}
-                        >
-                          Crear Sub-Operación
-                        </DropdownMenuItem>
-
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                  </div>
-                </div>
-
-                {madre.children?.length > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand(madre.id);
-                    }}
-                    className="mt-3 text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full"
-                  >
-                    {expanded[madre.id] ? '▼' : '▶'} {madre.children.length} Sub
-                  </button>
-                )}
-
-              </motion.div>
-
-              {/* SUBOPERACIONES */}
-              <AnimatePresence>
-                {expanded[madre.id] && madre.children?.map(sub => (
-                  <motion.div
-                    key={sub.id}
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.25 }}
-                    onClick={() => handleCardClick(sub)}
-                    className="ml-10 mt-2 bg-slate-50 border border-slate-200 rounded-lg p-3 cursor-pointer hover:bg-white transition"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="flex items-center gap-2 font-medium text-slate-700">
-                          <span className="text-slate-400">└</span>
-                          {sub.referencia}
-                        </div>
-                        <div className="text-xs text-slate-400">
-                          {sub.origen} → {sub.destino}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[sub.status] || 'bg-slate-100 text-slate-600'}`}>
-                          {sub.status}
-                        </span>
-                        {sub.status_especifico && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_ESPECIFICO_STYLES[sub.status_especifico] || 'bg-slate-50 text-slate-500'}`}>
-                            {sub.status_especifico}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-            </React.Fragment>
-          ))}
-
-        </AnimatePresence>
-
-      </div>
-
-      {/* DIALOGS */}
-
-      <OperacionDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        operacion={selectedOperacion}
-        onSuccess={(newOperacion) => {
-
-          if (!newOperacion) {
-            fetchOperaciones();
-            return;
-          }
-
-          setOperaciones(prev => {
-
-            // Si es sub-operación
-            if (newOperacion.operacion_madre_id) {
-
-              return prev.map(madre => {
-                if (madre.id === newOperacion.operacion_madre_id) {
-                  return {
-                    ...madre,
-                    children: [...(madre.children || []), newOperacion]
-                  };
-                }
-                return madre;
-              });
-            }
-
-            // Si es operación madre
-            return [
-              {
-                ...newOperacion,
-                children: []
-              },
-              ...prev
-            ];
-          });
-
-        }}
-      />
-
-      <SubOperacionDialog
-        open={subDialogOpen}
-        onOpenChange={setSubDialogOpen}
-        parentOperacion={parentForSub}
-        onSuccess={(newSub) => {
-
-          if (!newSub) {
-            fetchOperaciones();
-            return;
-          }
-
-          setOperaciones(prev =>
-            prev.map(madre => {
-              if (madre.id === newSub.operacion_madre_id) {
-                return {
-                  ...madre,
-                  children: [...(madre.children || []), newSub]
-                };
-              }
-              return madre;
-            })
-          );
-
-        }}
-      />
-
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar operación?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará permanentemente <strong>{operacionToDelete?.referencia}</strong>.
-              No se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirmed}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <DetailModal
-        open={detailModalOpen}
-        onOpenChange={setDetailModalOpen}
-        data={selectedOperacion}
-        onDelete={handleDelete}
-        onEdit={(op) => {
-          setDetailModalOpen(false);   // cerrar detalle
-          setSelectedOperacion(op);    // setear operación
-          setDialogOpen(true);         // abrir dialog edición
-        }}
-        onOpenSubOperacion={(sub) => {
-          setSelectedOperacion(sub);
-          setDetailModalOpen(true);
-        }}
-      />
-
-    </div>
+      </DialogContent>
+    </Dialog >
   );
 }
 
-export default OperacionesSection;
+export default OperacionDialog;

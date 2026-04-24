@@ -397,7 +397,7 @@ const DetailModal = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogContent className="w-[96vw] max-w-6xl max-h-[92vh] overflow-hidden flex flex-col">
 
                 <DialogHeader className="bg-gradient-to-r from-indigo-50 to-white border-b p-6 rounded-t-xl">
 
@@ -475,7 +475,7 @@ const DetailModal = ({
                         {/* GENERAL */}
                         <TabsContent value="general" className="mt-6">
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
 
                                 <Info label="Tipo Operación" value={{
                                     M: "Marítimo",
@@ -640,35 +640,31 @@ const DetailModal = ({
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <div className="flex justify-between pt-4">
-                    <div className="flex gap-3">
-                        <Button variant="destructive" onClick={() => { onDelete(operacion); onOpenChange(false); }}>
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Eliminar
+                <div className="flex flex-col sm:flex-row sm:justify-between gap-2 pt-4">
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="destructive" size="sm" onClick={() => { onDelete(operacion); onOpenChange(false); }}>
+                            <Trash2 className="w-4 h-4 sm:mr-2" />
+                            <span className="hidden sm:inline">Eliminar</span>
                         </Button>
 
                         <Button
                             variant="outline"
-                            onClick={() => {
-                                onEdit(operacion);
-                            }}
+                            size="sm"
+                            onClick={() => { onEdit(operacion); }}
                         >
-                            <Edit className="w-4 h-4 mr-2" />
-                            Editar
+                            <Edit className="w-4 h-4 sm:mr-2" />
+                            <span className="hidden sm:inline">Editar</span>
                         </Button>
 
                         <Button
                             variant="secondary"
+                            size="sm"
                             onClick={() => {
-                                window.dispatchEvent(
-                                    new CustomEvent('openOperacionFiles', {
-                                        detail: operacion
-                                    })
-                                );
+                                window.dispatchEvent(new CustomEvent('openOperacionFiles', { detail: operacion }));
                             }}
                         >
-                            <FolderOpen className="w-4 h-4 mr-2" />
-                            Archivos
+                            <FolderOpen className="w-4 h-4 sm:mr-2" />
+                            <span className="hidden sm:inline">Archivos</span>
                         </Button>
 
                         <DropdownMenu>
@@ -714,7 +710,7 @@ const DetailModal = ({
 
                     </div>
 
-                    <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                    <Button variant="ghost" size="sm" className="self-end sm:self-auto" onClick={() => onOpenChange(false)}>
                         <X className="w-4 h-4" />
                     </Button>
                 </div>

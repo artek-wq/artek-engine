@@ -101,7 +101,7 @@ function FacturasSection() {
     <div className="space-y-6">
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Total facturado', value: `$${fmt(totalFacturado)}`, color: 'text-slate-800' },
           { label: 'Por cobrar', value: `$${fmt(totalPendiente)}`, color: 'text-amber-600' },

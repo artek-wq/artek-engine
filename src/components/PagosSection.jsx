@@ -198,7 +198,7 @@ function PagosSection() {
     <div className="space-y-5">
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Total', value: `$${fmt(kpis.total)}`, color: 'text-slate-800' },
           { label: 'Pendiente', value: `$${fmt(kpis.pendiente)}`, color: 'text-amber-600' },
